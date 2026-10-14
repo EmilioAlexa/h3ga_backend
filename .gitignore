@@ -68,6 +68,10 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+.env.local
+.env.development
+.env.test
+.env.production
 !.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -147,3 +151,16 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
