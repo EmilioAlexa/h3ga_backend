@@ -2,6 +2,7 @@ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
   moduleFormat = "cjs"
+  moduleFormat = "cjs"
 }
 
 datasource db {
@@ -398,6 +399,7 @@ model usuarios {
   apellido_paterno                                            String
   apellido_materno                                            String?
   correo_electronico                                          String                     @unique
+  password_hash                                               String?                    @db.Text
   activo                                                      Boolean                    @default(true)
   fecha_creacion                                              DateTime                   @default(now()) @db.Timestamptz(6)
   clientes                                                    clientes[]
