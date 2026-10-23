@@ -81,8 +81,16 @@ El archivo .env será utilizado únicamente en los entornos correspondientes y n
 Se mantendrá un archivo .env.example como referencia para las variables necesarias.
 
 Comandos de Ejecución
+# Instalar las dependencias del proyecto
+pnpm install --frozen-lockfile
 
-# Iniciar servidor en modo desarrollo con Hot Reload
+# Generar Prisma Client, una vez configurado el esquema
+pnpm exec prisma generate
+
+# Aplicar las migraciones existentes en la base local
+pnpm exec prisma migrate deploy
+
+# Iniciar NestJS en desarrollo
 pnpm run start:dev
 
 # Compilar proyecto para producción
