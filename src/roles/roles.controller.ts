@@ -10,7 +10,7 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get()
-  @Roles('ADMINISTRADOR')
+  @Roles('administrador')
   findAll() {
     return this.rolesService.findAll();
   }
