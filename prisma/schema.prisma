@@ -1,8 +1,8 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-  moduleFormat = "cjs"
-  moduleFormat = "cjs"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+  moduleFormat    = "cjs"
 }
 
 datasource db {
@@ -10,84 +10,100 @@ datasource db {
 }
 
 model clientes {
-  id                          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  grupo_principal_id          Int?        @db.SmallInt
-  nombre                      String
-  apellido_paterno            String
-  apellido_materno            String?
-  referido_por                String?
-  telefono                    String?
-  asesor_id                   String?     @db.Uuid
-  fecha_ingreso               DateTime?   @db.Date
-  correo_electronico          String?
-  curp                        String?     @db.VarChar(18)
-  rfc                         String?     @db.VarChar(13)
-  fecha_nacimiento            DateTime?   @db.Date
-  estado_civil                String?
-  dependientes_economicos     Int?
-  regimen_id                  Int?        @db.SmallInt
-  nss                         String?     @db.VarChar(11)
-  ley_probable_id             Int?        @db.SmallInt
-  semanas_imss_reconocidas    Int?
-  semanas_a_recuperar         Int?
-  tiene_issste                String?
-  afore_id                    Int?        @db.SmallInt
-  observaciones_generales     String?
-  requiere_contadora          String?
-  sexo                        String?
-  ocupacion                   String?
-  domicilio                   String?
-  estado                      String?
-  subdelegacion_imss_probable String?
-  cambio_afore                String?
-  ine                         String?     @db.VarChar(18)
-  objetivo_cliente            String?
-  usuarios                    usuarios?   @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_asesor")
-  contratos                   contratos[]
+  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  grupo_principal_id            Int?                            @db.SmallInt
+  nombre                        String
+  apellido_paterno              String
+  apellido_materno              String?
+  referido_por                  String?
+  telefono                      String?
+  asesor_id                     String?                         @db.Uuid
+  fecha_ingreso                 DateTime?                       @db.Date
+  correo_electronico            String?
+  curp                          String?                         @db.VarChar(18)
+  rfc                           String?                         @db.VarChar(13)
+  fecha_nacimiento              DateTime?                       @db.Date
+  estado_civil                  String?
+  dependientes_economicos       Int?
+  regimen_id                    Int?                            @db.SmallInt
+  nss                           String?                         @db.VarChar(11)
+  ley_probable_id               Int?                            @db.SmallInt
+  semanas_imss_reconocidas      Int?
+  semanas_a_recuperar           Int?
+  tiene_issste                  String?
+  afore_id                      Int?                            @db.SmallInt
+  observaciones_generales       String?
+  requiere_contadora            String?
+  sexo                          String?
+  ocupacion                     String?
+  domicilio                     String?
+  estado                        String?
+  subdelegacion_imss_probable   String?
+  cambio_afore                  String?
+  ine                           String?                         @db.VarChar(18)
+  objetivo_cliente              String?
+  cliente_objetivos_especificos cliente_objetivos_especificos[]
+  afore                         afore?                          @relation(fields: [afore_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_afore")
+  usuarios                      usuarios?                       @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_asesor")
+  grupos_principales            grupos_principales?             @relation(fields: [grupo_principal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_grupo_principal")
+  ley_probable                  ley_probable?                   @relation(fields: [ley_probable_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_ley_probable")
+  regimen_principal             regimen_principal?              @relation(fields: [regimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_regimen")
+  contratos                     contratos[]
+  correcciones_cliente          correcciones_cliente[]
+  credenciales_correo_cliente   credenciales_correo_cliente?
+  diagnostico_especializado     diagnostico_especializado?
+  documentos_clientes           documentos_clientes[]
+  etapas_tramite                etapas_tramite[]
+  eventos_agenda                eventos_agenda[]
+  historial_laboral             historial_laboral?
+  informacion_fiscal            informacion_fiscal?
+  modalidades_aplicacion        modalidades_aplicacion[]
+  periodos_inconsistencias      periodos_inconsistencias[]
 }
 
 model comisiones {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pago_id            String             @db.Uuid
-  asesor_id          String             @db.Uuid
-  porcentaje         Decimal            @db.Decimal(5, 2)
-  monto_base         Decimal            @db.Decimal(12, 2)
-  monto_comision     Decimal            @db.Decimal(12, 2)
-  estado_id          Int                @db.SmallInt
-  fecha_calculo      DateTime           @default(now()) @db.Timestamptz(6)
-  observaciones      String?
-  usuarios           usuarios           @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_asesor")
-  estados_comisiones estados_comisiones @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_estado")
-  pagos              pagos              @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_pago")
-}
+  id                             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pago_id                        String                       @db.Uuid
+  beneficiario_id                String?                      @db.Uuid
+  monto_base                     Decimal                      @db.Decimal(12, 2)
+  monto_comision                 Decimal                      @db.Decimal(12, 2)
+  estado_id                      Int                          @db.SmallInt
+  fecha_calculo                  DateTime                     @default(now()) @db.Timestamptz(6)
+  observaciones                  String?
+  concepto_id                    Int                          @db.SmallInt
+  tipo_calculo                   tipo_calculo_dispersion
+  valor_aplicado                 Decimal                      @db.Decimal(12, 2)
+  contrato_dispersion_detalle_id String?                      @db.Uuid
+  detalle_prenomina_id           String?                      @db.Uuid
+  conceptos_dispersion           conceptos_dispersion         @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contrato_dispersion_detalle    contrato_dispersion_detalle? @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
+  detalle_prenomina              detalle_prenomina?           @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
+  usuarios                       usuarios?                    @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_asesor")
+  estados_comisiones             estados_comisiones           @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_estado")
+  pagos                          pagos                        @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_pago")
 
-model configuracion_comisiones {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  asesor_id      String       @db.Uuid
-  tipo_asesor_id Int          @db.SmallInt
-  porcentaje     Decimal      @db.Decimal(5, 2)
-  vigencia_desde DateTime     @db.Date
-  vigencia_hasta DateTime?    @db.Date
-  activo         Boolean      @default(true)
-  usuarios       usuarios     @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_config_comision_asesor")
-  tipos_asesor   tipos_asesor @relation(fields: [tipo_asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_config_comision_tipo")
+  @@unique([pago_id, concepto_id], map: "uq_comisiones_pago_concepto")
+  @@index([beneficiario_id], map: "ix_comisiones_beneficiario")
+  @@index([concepto_id], map: "ix_comisiones_concepto")
+  @@index([detalle_prenomina_id], map: "ix_comisiones_prenomina")
 }
 
 model contratos {
-  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cliente_id                  String                       @db.Uuid
-  servicio_id                 Int                          @db.SmallInt
-  asesor_id                   String                       @db.Uuid
-  folio                       String                       @db.VarChar(50)
-  fecha_contrato              DateTime                     @db.Date
-  estado_contrato_id          Int                          @db.SmallInt
-  cantidad_pagos              Int?                         @db.SmallInt
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                  String                        @db.Uuid
+  servicio_id                 Int                           @db.SmallInt
+  asesor_id                   String                        @db.Uuid
+  folio                       String                        @db.VarChar(50)
+  fecha_contrato              DateTime                      @db.Date
+  estado_contrato_id          Int                           @db.SmallInt
+  cantidad_pagos              Int?                          @db.SmallInt
   observaciones               String?
-  creado_en                   DateTime                     @default(now()) @db.Timestamptz(6)
-  usuarios                    usuarios                     @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_asesor")
-  clientes                    clientes                     @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_cliente")
-  estados_contratos           estados_contratos            @relation(fields: [estado_contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_estado")
-  servicios                   servicios                    @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_servicio")
+  creado_en                   DateTime                      @default(now()) @db.Timestamptz(6)
+  contrato_dispersion_detalle contrato_dispersion_detalle[]
+  usuarios                    usuarios                      @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_asesor")
+  clientes                    clientes                      @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_cliente")
+  estados_contratos           estados_contratos             @relation(fields: [estado_contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_estado")
+  servicios                   servicios                     @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_servicio")
   pagos                       pagos[]
   pagos_programados           pagos_programados[]
   seguimiento_apd             seguimiento_apd?
@@ -125,13 +141,14 @@ model detalle_corte {
 }
 
 model detalle_prenomina {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  prenomina_id      String    @db.Uuid
-  asesor_id         String    @db.Uuid
-  monto_referencial Decimal?  @db.Decimal(12, 2)
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prenomina_id      String       @db.Uuid
+  beneficiario_id   String       @db.Uuid
+  monto_referencial Decimal?     @db.Decimal(12, 2)
   observaciones     String?
-  prenomina         prenomina @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
-  usuarios          usuarios  @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
+  comisiones        comisiones[]
+  prenomina         prenomina    @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
+  usuarios          usuarios     @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
 }
 
 model estados_comisiones {
@@ -354,19 +371,21 @@ model seguimiento_m40_retroactiva {
 }
 
 model servicios {
-  id          Int         @id @default(autoincrement()) @db.SmallInt
-  nombre      String      @unique
-  descripcion String?
-  activo      Boolean     @default(true)
-  contratos   contratos[]
+  id                  Int                   @id @default(autoincrement()) @db.SmallInt
+  nombre              String                @unique
+  descripcion         String?
+  activo              Boolean               @default(true)
+  contratos           contratos[]
+  esquemas_dispersion esquemas_dispersion[]
 }
 
 model tipos_asesor {
-  id                       Int                        @id @default(autoincrement()) @db.SmallInt
-  nombre                   String                     @unique @db.VarChar(50)
-  descripcion              String?
-  activo                   Boolean                    @default(true)
-  configuracion_comisiones configuracion_comisiones[]
+  id                                Int                                 @id @default(autoincrement()) @db.SmallInt
+  nombre                            String                              @unique @db.VarChar(50)
+  descripcion                       String?
+  activo                            Boolean                             @default(true)
+  configuracion_comisiones_obsoleta configuracion_comisiones_obsoleta[]
+  esquemas_dispersion               esquemas_dispersion[]
 }
 
 model tipos_cobro {
@@ -393,25 +412,850 @@ model tipos_venta {
 }
 
 model usuarios {
-  id                                                          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rol_id                                                      Int                        @db.SmallInt
-  nombre                                                      String
-  apellido_paterno                                            String
-  apellido_materno                                            String?
-  correo_electronico                                          String                     @unique
-  password_hash                                               String?                    @db.Text
-  activo                                                      Boolean                    @default(true)
-  fecha_creacion                                              DateTime                   @default(now()) @db.Timestamptz(6)
-  clientes                                                    clientes[]
-  comisiones                                                  comisiones[]
-  configuracion_comisiones                                    configuracion_comisiones[]
-  contratos                                                   contratos[]
-  cortes_financieros_cortes_financieros_cerrado_porTousuarios cortes_financieros[]       @relation("cortes_financieros_cerrado_porTousuarios")
-  cortes_financieros_cortes_financieros_creado_porTousuarios  cortes_financieros[]       @relation("cortes_financieros_creado_porTousuarios")
-  detalle_prenomina                                           detalle_prenomina[]
-  evidencias_pago                                             evidencias_pago[]
-  historial_estados_pago                                      historial_estados_pago[]
-  pagos                                                       pagos[]
-  prenomina                                                   prenomina[]
-  roles                                                       roles                      @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
+  id                                                                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rol_id                                                                            Int                                 @db.SmallInt
+  nombre                                                                            String
+  apellido_paterno                                                                  String
+  apellido_materno                                                                  String?
+  correo_electronico                                                                String                              @unique
+  activo                                                                            Boolean                             @default(true)
+  fecha_creacion                                                                    DateTime                            @default(now()) @db.Timestamptz(6)
+  password_hash                                                                     String?
+  avisos                                                                            avisos[]
+  clientes                                                                          clientes[]
+  comisiones                                                                        comisiones[]
+  configuracion_comisiones_obsoleta                                                 configuracion_comisiones_obsoleta[]
+  contrato_dispersion_detalle_contrato_dispersion_detalle_beneficiario_idTousuarios contrato_dispersion_detalle[]       @relation("contrato_dispersion_detalle_beneficiario_idTousuarios")
+  contrato_dispersion_detalle_contrato_dispersion_detalle_creado_porTousuarios      contrato_dispersion_detalle[]       @relation("contrato_dispersion_detalle_creado_porTousuarios")
+  contratos                                                                         contratos[]
+  cortes_financieros_cortes_financieros_cerrado_porTousuarios                       cortes_financieros[]                @relation("cortes_financieros_cerrado_porTousuarios")
+  cortes_financieros_cortes_financieros_creado_porTousuarios                        cortes_financieros[]                @relation("cortes_financieros_creado_porTousuarios")
+  credenciales_correo_cliente                                                       credenciales_correo_cliente[]
+  detalle_prenomina                                                                 detalle_prenomina[]
+  diagnostico_especializado                                                         diagnostico_especializado[]
+  documentos_clientes                                                               documentos_clientes[]
+  esquemas_dispersion                                                               esquemas_dispersion[]
+  etapas_tramite_historial                                                          etapas_tramite_historial[]
+  eventos_agenda                                                                    eventos_agenda[]
+  evidencias_pago                                                                   evidencias_pago[]
+  historial_estados_pago                                                            historial_estados_pago[]
+  pagos                                                                             pagos[]
+  prenomina                                                                         prenomina[]
+  roles                                                                             roles                               @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
+}
+
+model afore {
+  id       Int        @id @default(autoincrement()) @db.SmallInt
+  nombre   String
+  clientes clientes[]
+}
+
+model analisis_modalidad40_retroactivo {
+  id                                  String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_id                      String                                @unique @db.Uuid
+  fecha_propuesta_inicio_m40          DateTime?                             @db.Date
+  fecha_solicitud                     DateTime?                             @db.Date
+  meses_retroactivos_estimados        Int?                                  @db.SmallInt
+  salario_diario_propuesto            Decimal?                              @db.Decimal(10, 2)
+  cuotas_estimadas                    Decimal?                              @db.Decimal(12, 2)
+  recargos_actualizaciones_estimadas  Decimal?                              @db.Decimal(12, 2)
+  total_estimado_pagar                Decimal?                              @db.Decimal(12, 2)
+  baja_por_mora_previa                Boolean?
+  dentro_de_plazo_reingreso           validacion_estado?
+  conclusion_retroactivo              evaluacion_retroactivo?
+  comentarios                         String?
+  diagnostico_especializado           diagnostico_especializado             @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_analisis_m40_retro_diagnostico")
+  retroactivo_evaluacion_conveniencia retroactivo_evaluacion_conveniencia[]
+}
+
+model analisis_recuperacion_semanas {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_id            String                      @unique @db.Uuid
+  aplica                    aplicabilidad_recuperacion?
+  observaciones             String?
+  diagnostico_especializado diagnostico_especializado   @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_analisis_recuperacion_diagnostico")
+  recuperacion_evidencias   recuperacion_evidencias[]
+  recuperacion_gestiones    recuperacion_gestiones[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model avisos {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo             tipo_aviso
+  etapa_tramite_id String?         @db.Uuid
+  evento_id        String?         @db.Uuid
+  fecha_alerta     DateTime        @db.Timestamptz(6)
+  atendido         Boolean         @default(false)
+  atendido_por     String?         @db.Uuid
+  fecha_atencion   DateTime?       @db.Timestamptz(6)
+  usuarios         usuarios?       @relation(fields: [atendido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_atendido_por")
+  etapas_tramite   etapas_tramite? @relation(fields: [etapa_tramite_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_etapa_tramite")
+  eventos_agenda   eventos_agenda? @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_evento")
+}
+
+model cliente_objetivos_especificos {
+  cliente_id                  String                      @db.Uuid
+  objetivo_id                 Int                         @db.SmallInt
+  clientes                    clientes                    @relation(fields: [cliente_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_cliente_objetivos_cliente")
+  objetivo_especifico_inicial objetivo_especifico_inicial @relation(fields: [objetivo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_objetivos_objetivo")
+
+  @@id([cliente_id, objetivo_id], map: "pk_cliente_objetivos_especificos")
+}
+
+model correcciones_cliente {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id              String                   @db.Uuid
+  tipo_correccion_id      Int                      @db.SmallInt
+  observaciones           String?
+  tiempo_promedio         String?
+  dato_actual             String?
+  dato_correcto           String?
+  clientes                clientes                 @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_cliente_cliente")
+  tipo_correccion         tipo_correccion          @relation(fields: [tipo_correccion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_cliente_tipo")
+  unificacion_nss_detalle unificacion_nss_detalle?
+}
+
+model credenciales_correo_cliente {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id            String    @unique @db.Uuid
+  correo                String
+  contrasena_encriptada String
+  fecha_actualizacion   DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_por       String?   @db.Uuid
+  activo                Boolean   @default(true)
+  clientes              clientes  @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_credenciales_correo_cliente")
+  usuarios              usuarios? @relation(fields: [actualizado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_credenciales_correo_usuario")
+}
+
+model diagnostico_especializado {
+  id                                    String                                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                            String                                  @unique @db.Uuid
+  fecha_analisis                        DateTime?                               @default(dbgenerated("CURRENT_DATE")) @db.Date
+  asesor_id                             String                                  @db.Uuid
+  fecha_primera_cotizacion              DateTime?                               @db.Date
+  cotizo_antes_julio_1997               Boolean?
+  tipo_pension_probable                 tipo_pension?
+  edad_objetivo_pension                 Int?                                    @db.SmallInt
+  comentarios_cliente                   String?
+  observaciones_regimen                 String?
+  fecha_ultima_baja                     DateTime?                               @db.Date
+  ultimo_salario_cotizado               Decimal?                                @db.Decimal(10, 2)
+  fecha_vencimiento_conservacion        DateTime?                               @db.Date
+  tiene_conservacion_derechos           validacion_estado?
+  tiempo_estimado_conservacion_meses    Int?
+  dentro_de_conservacion                validacion_estado?
+  requiere_reactivacion                 Boolean?                                @default(false)
+  conviene_pensionar_ahora              conveniencia_pension?
+  comentarios_conservacion              String?
+  semanas_reconocidas_al_baja           Int?
+  semanas_descontadas                   Int?                                    @default(0)
+  semanas_reintegradas                  Int?                                    @default(0)
+  semanas_efectivas_pension             Int?
+  semanas_requeridas_pension            Int?
+  trabaja_cuenta_propia                 si_no_parcial?
+  actividad_economica                   String?
+  ingreso_mensual_aproximado            Decimal?                                @db.Decimal(10, 2)
+  conclusion_modalidad_10               evaluacion_modalidad?
+  comentarios_modalidad_10              String?
+  dado_de_baja_regimen_obligatorio      validacion_estado?
+  conclusion_modalidad_40               evaluacion_modalidad?
+  salario_propuesto_m40                 Decimal?                                @db.Decimal(10, 2)
+  meses_propuestos_m40                  Int?                                    @db.SmallInt
+  evalua_retroactivo_m40                Boolean?                                @default(false)
+  comentarios_modalidad_40              String?
+  justificacion_estrategia              String?
+  siguiente_paso_sugerido               String?
+  conclusion_financiera                 String?
+  firma_cliente_path                    String?
+  firma_asesor_path                     String?
+  fecha_firma                           DateTime?                               @db.Timestamptz(6)
+  creado_en                             DateTime                                @default(now()) @db.Timestamptz(6)
+  actualizado_en                        DateTime                                @default(now()) @db.Timestamptz(6)
+  analisis_modalidad40_retroactivo      analisis_modalidad40_retroactivo?
+  analisis_recuperacion_semanas         analisis_recuperacion_semanas?
+  usuarios                              usuarios                                @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diagnostico_asesor")
+  clientes                              clientes                                @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diagnostico_cliente")
+  diagnostico_estrategias_recomendadas  diagnostico_estrategias_recomendadas[]
+  diagnostico_inconsistencias_generales diagnostico_inconsistencias_generales[]
+  diagnostico_objetivos                 diagnostico_objetivos[]
+  diagnostico_objetivos_m10             diagnostico_objetivos_m10[]
+  diagnostico_objetivos_m40             diagnostico_objetivos_m40[]
+  escenario_pension                     escenario_pension[]
+  modalidad10_criterios                 modalidad10_criterios[]
+  modalidad40_criterios                 modalidad40_criterios[]
+  modalidades_aplicacion                modalidades_aplicacion[]
+  plan_accion                           plan_accion[]
+  situacion_patrimonial                 situacion_patrimonial?
+}
+
+model diagnostico_estrategias_recomendadas {
+  diagnostico_id              String                      @db.Uuid
+  estrategia_id               Int                         @db.SmallInt
+  detalle_otro                String?
+  diagnostico_especializado   diagnostico_especializado   @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_diag_estrategias_diagnostico")
+  estrategia_recomendada_tipo estrategia_recomendada_tipo @relation(fields: [estrategia_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diag_estrategias_estrategia")
+
+  @@id([diagnostico_id, estrategia_id], map: "pk_diagnostico_estrategias_recomendadas")
+}
+
+model diagnostico_inconsistencias_generales {
+  diagnostico_id                String                        @db.Uuid
+  tipo_id                       Int                           @db.SmallInt
+  detalle_otro                  String?
+  diagnostico_especializado     diagnostico_especializado     @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_diag_inconsistencias_diagnostico")
+  tipo_inconsistencia_detectada tipo_inconsistencia_detectada @relation(fields: [tipo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diag_inconsistencias_tipo")
+
+  @@id([diagnostico_id, tipo_id], map: "pk_diagnostico_inconsistencias_generales")
+}
+
+model diagnostico_objetivos {
+  diagnostico_id            String                    @db.Uuid
+  objetivo_id               Int                       @db.SmallInt
+  detalle_otro              String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_diag_objetivos_diagnostico")
+  objetivo_diagnostico      objetivo_diagnostico      @relation(fields: [objetivo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diag_objetivos_objetivo")
+
+  @@id([diagnostico_id, objetivo_id], map: "pk_diagnostico_objetivos")
+}
+
+model diagnostico_objetivos_m10 {
+  diagnostico_id            String                    @db.Uuid
+  objetivo_id               Int                       @db.SmallInt
+  detalle_otro              String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_diag_objetivos_m10_diagnostico")
+  objetivo_modalidad_10     objetivo_modalidad_10     @relation(fields: [objetivo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diag_objetivos_m10_objetivo")
+
+  @@id([diagnostico_id, objetivo_id], map: "pk_diagnostico_objetivos_m10")
+}
+
+model diagnostico_objetivos_m40 {
+  diagnostico_id            String                    @db.Uuid
+  objetivo_id               Int                       @db.SmallInt
+  detalle_otro              String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_diag_objetivos_m40_diagnostico")
+  objetivo_modalidad_40     objetivo_modalidad_40     @relation(fields: [objetivo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_diag_objetivos_m40_objetivo")
+
+  @@id([diagnostico_id, objetivo_id], map: "pk_diagnostico_objetivos_m40")
+}
+
+model divisiones {
+  id                 Int                  @id @default(autoincrement()) @db.SmallInt
+  nombre             String               @unique
+  activo             Boolean              @default(true)
+  grupos_principales grupos_principales[]
+}
+
+model documentos_clientes {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id              String               @db.Uuid
+  tipo_documento_id       Int                  @db.SmallInt
+  archivo_path            String
+  nombre_archivo_original String?
+  mime_type               String?
+  estatus                 estado_confirmacion?
+  numero_referencia       String?
+  fecha_carga             DateTime             @default(now()) @db.Timestamptz(6)
+  subido_por              String?              @db.Uuid
+  observaciones           String?
+  clientes                clientes             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_cliente")
+  tipo_documento          tipo_documento       @relation(fields: [tipo_documento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_tipo")
+  usuarios                usuarios?            @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_usuario")
+}
+
+model escenario_pension {
+  id                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_f1_id            String                    @db.Uuid
+  nombre_escenario             String
+  orden                        Int?                      @db.SmallInt
+  semanas_proyectadas          Int?
+  salario_promedio_proyectado  Decimal?                  @db.Decimal(10, 2)
+  inversion_total_estimada     Decimal?                  @default(0) @db.Decimal(12, 2)
+  pension_mensual_estimada     Decimal?                  @db.Decimal(12, 2)
+  incremento_mensual           Decimal?                  @db.Decimal(12, 2)
+  meses_recuperacion_inversion Decimal?                  @db.Decimal(6, 1)
+  beneficio_a_5_anios          Decimal?                  @db.Decimal(12, 2)
+  beneficio_a_10_anios         Decimal?                  @db.Decimal(12, 2)
+  beneficio_a_15_anios         Decimal?                  @db.Decimal(12, 2)
+  salario_modalidad_40         Decimal?                  @db.Decimal(10, 2)
+  meses_modalidad_40           Int?                      @db.SmallInt
+  costo_mensual_estimado       Decimal?                  @db.Decimal(12, 2)
+  diagnostico_especializado    diagnostico_especializado @relation(fields: [diagnostico_f1_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_escenario_pension_diagnostico")
+}
+
+model estatus_modalidad {
+  id                                                                               Int                      @id @default(autoincrement()) @db.SmallInt
+  nombre                                                                           String                   @unique
+  orden                                                                            Int                      @db.SmallInt
+  es_final                                                                         Boolean
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m10_idToestatus_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40_idToestatus_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad")
+}
+
+model estatus_tramite {
+  id                                                                                     Int                        @id @default(autoincrement()) @db.SmallInt
+  nombre                                                                                 String
+  descripcion                                                                            String?
+  categoria                                                                              categoria_tramite
+  avance_porcentaje_fijo                                                                 Int?                       @db.SmallInt
+  avance_editable                                                                        Boolean                    @default(false)
+  avance_min                                                                             Int?                       @db.SmallInt
+  avance_max                                                                             Int?                       @db.SmallInt
+  etapas_tramite                                                                         etapas_tramite[]
+  etapas_tramite_historial_etapas_tramite_historial_estatus_anterior_idToestatus_tramite etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_anterior_idToestatus_tramite")
+  etapas_tramite_historial_etapas_tramite_historial_estatus_nuevo_idToestatus_tramite    etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_nuevo_idToestatus_tramite")
+}
+
+model estrategia_recomendada_tipo {
+  id                                   Int                                    @id @default(autoincrement()) @db.SmallInt
+  nombre                               String                                 @unique
+  diagnostico_estrategias_recomendadas diagnostico_estrategias_recomendadas[]
+}
+
+model etapas_proceso {
+  id             Int              @id @default(autoincrement()) @db.SmallInt
+  numero_paso    Int              @unique @db.SmallInt
+  nombre         String
+  etapas_tramite etapas_tramite[]
+}
+
+model etapas_tramite {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id               String                     @db.Uuid
+  etapa_id                 Int                        @db.SmallInt
+  estatus_id               Int                        @db.SmallInt
+  avance_porcentaje        Int                        @default(0) @db.SmallInt
+  accion_a_realizar        String?
+  fecha_compromiso         DateTime?                  @db.Date
+  fecha_completada         DateTime?                  @db.Date
+  reactivado_en            DateTime?                  @db.Timestamptz(6)
+  creado_el                DateTime                   @default(now()) @db.Timestamptz(6)
+  actualizado_el           DateTime                   @default(now()) @db.Timestamptz(6)
+  motivo_rechazo           String?
+  avisos                   avisos[]
+  clientes                 clientes                   @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_cliente")
+  estatus_tramite          estatus_tramite            @relation(fields: [estatus_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_estatus")
+  etapas_proceso           etapas_proceso             @relation(fields: [etapa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_etapa")
+  etapas_tramite_historial etapas_tramite_historial[]
+
+  @@unique([cliente_id, etapa_id], map: "uq_etapas_tramite_cliente_etapa")
+}
+
+model etapas_tramite_historial {
+  id                                                                            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  etapa_tramite_id                                                              String           @db.Uuid
+  estatus_anterior_id                                                           Int?             @db.SmallInt
+  estatus_nuevo_id                                                              Int              @db.SmallInt
+  motivo_rechazo                                                                String?
+  cambiado_por                                                                  String           @db.Uuid
+  fecha_cambio                                                                  DateTime         @default(now()) @db.Timestamptz(6)
+  estatus_tramite_etapas_tramite_historial_estatus_anterior_idToestatus_tramite estatus_tramite? @relation("etapas_tramite_historial_estatus_anterior_idToestatus_tramite", fields: [estatus_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_historial_estatus_anterior")
+  estatus_tramite_etapas_tramite_historial_estatus_nuevo_idToestatus_tramite    estatus_tramite  @relation("etapas_tramite_historial_estatus_nuevo_idToestatus_tramite", fields: [estatus_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_historial_estatus_nuevo")
+  etapas_tramite                                                                etapas_tramite   @relation(fields: [etapa_tramite_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_historial_etapa_tramite")
+  usuarios                                                                      usuarios         @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_historial_usuario")
+}
+
+model eventos_agenda {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asesor_id  String                 @db.Uuid
+  cliente_id String                 @db.Uuid
+  fecha      DateTime               @db.Date
+  hora       DateTime?              @db.Time(6)
+  motivo     String?
+  estatus    estatus_evento_agenda?
+  avisos     avisos[]
+  usuarios   usuarios               @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_eventos_agenda_asesor")
+  clientes   clientes               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_eventos_agenda_cliente")
+}
+
+model grupos_principales {
+  id          Int        @id @default(autoincrement()) @db.SmallInt
+  division_id Int        @db.SmallInt
+  nombre      String
+  activo      Boolean    @default(true)
+  clientes    clientes[]
+  divisiones  divisiones @relation(fields: [division_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_grupos_principales_division")
+
+  @@unique([division_id, nombre], map: "uq_grupos_principales_division_nombre")
+}
+
+model historial_laboral {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id         String               @unique @db.Uuid
+  semanas_issste     Int?
+  salario_promedio   Decimal?             @db.Decimal(10, 2)
+  ultimo_patron      String?
+  vigencia_derechos  estado_confirmacion?
+  activo             Boolean              @default(true)
+  clientes           clientes             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_laboral_cliente")
+  informacion_issste informacion_issste?
+}
+
+model informacion_fiscal {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id               String    @unique @db.Uuid
+  regimen_fiscal           String?
+  fecha_registro           DateTime  @default(now()) @db.Timestamptz(6)
+  activo                   Boolean   @default(true)
+  observaciones            String?
+  fiel_entregada           Boolean   @default(false)
+  sat_contrasena_entregada Boolean   @default(false)
+  fecha_confirmacion       DateTime? @db.Timestamptz(6)
+  clientes                 clientes  @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_informacion_fiscal_cliente")
+}
+
+model informacion_issste {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  historial_laboral_id String            @unique @db.Uuid
+  nss_issste           String?           @db.VarChar(20)
+  regimen_pensionario  String?
+  anios_laborados      Decimal?          @db.Decimal(5, 2)
+  activo               Boolean           @default(true)
+  historial_laboral    historial_laboral @relation(fields: [historial_laboral_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_informacion_issste_historial")
+}
+
+model ley_probable {
+  id       Int        @id @default(autoincrement()) @db.SmallInt
+  nombre   String
+  clientes clientes[]
+}
+
+model modalidad10_criterios {
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_id            String                    @db.Uuid
+  criterio                  String
+  cumple                    Boolean?
+  observaciones             String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_modalidad10_criterios_diagnostico")
+}
+
+model modalidad40_criterios {
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_id            String                    @db.Uuid
+  criterio                  String
+  cumplimiento              cumplimiento_criterio?
+  observaciones             String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_modalidad40_criterios_diagnostico")
+}
+
+model modalidades_aplicacion {
+  id                                                                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                                                                  String                    @db.Uuid
+  diagnostico_id                                                              String                    @db.Uuid
+  estatus_m10_id                                                              Int?                      @db.SmallInt
+  estatus_m40r_id                                                             Int?                      @db.SmallInt
+  estatus_m40_id                                                              Int?                      @db.SmallInt
+  tipo_modalidad                                                              tipo_modalidad?
+  fecha_cita_imss                                                             DateTime?                 @db.Date
+  ultimo_salario_diario_registrado                                            Decimal?                  @db.Decimal(10, 2)
+  creado_el                                                                   DateTime                  @default(now()) @db.Timestamptz(6)
+  clientes                                                                    clientes                  @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_cliente")
+  diagnostico_especializado                                                   diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_diagnostico")
+  estatus_modalidad_modalidades_aplicacion_estatus_m10_idToestatus_modalidad  estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad", fields: [estatus_m10_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m10")
+  estatus_modalidad_modalidades_aplicacion_estatus_m40_idToestatus_modalidad  estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad", fields: [estatus_m40_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40")
+  estatus_modalidad_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad", fields: [estatus_m40r_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40r")
+}
+
+model objetivo_diagnostico {
+  id                    Int                     @id @default(autoincrement()) @db.SmallInt
+  nombre                String                  @unique
+  diagnostico_objetivos diagnostico_objetivos[]
+}
+
+model objetivo_especifico_inicial {
+  id                            Int                             @id @default(autoincrement()) @db.SmallInt
+  nombre                        String                          @unique
+  cliente_objetivos_especificos cliente_objetivos_especificos[]
+}
+
+model objetivo_modalidad_10 {
+  id                        Int                         @id @default(autoincrement()) @db.SmallInt
+  nombre                    String                      @unique
+  diagnostico_objetivos_m10 diagnostico_objetivos_m10[]
+}
+
+model objetivo_modalidad_40 {
+  id                        Int                         @id @default(autoincrement()) @db.SmallInt
+  nombre                    String                      @unique
+  diagnostico_objetivos_m40 diagnostico_objetivos_m40[]
+}
+
+model periodos_inconsistencias {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id           String                 @db.Uuid
+  nombre_patron        String?
+  periodo_reclamado    String?
+  semanas_esperadas    Int?
+  semanas_reconocidas  Int?                   @default(0)
+  evidencia_disponible String?
+  accion_sugerida      String?
+  estatus              estatus_inconsistencia @default(pendiente)
+  clientes             clientes               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_periodos_inconsistencias_cliente")
+}
+
+model plan_accion {
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_id            String                    @db.Uuid
+  accion                    String
+  fecha_objetivo            DateTime?                 @db.Date
+  estatus                   estatus_plan_accion?
+  observaciones             String?
+  diagnostico_especializado diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_plan_accion_diagnostico")
+}
+
+model recuperacion_evidencias {
+  analisis_id                   String                        @db.Uuid
+  tipo_evidencia_id             Int                           @db.SmallInt
+  detalle_otro                  String?
+  analisis_recuperacion_semanas analisis_recuperacion_semanas @relation(fields: [analisis_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_recuperacion_evidencias_analisis")
+  tipo_evidencia_recuperacion   tipo_evidencia_recuperacion   @relation(fields: [tipo_evidencia_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recuperacion_evidencias_tipo")
+
+  @@id([analisis_id, tipo_evidencia_id], map: "pk_recuperacion_evidencias")
+}
+
+model recuperacion_gestiones {
+  analisis_id                   String                        @db.Uuid
+  tipo_gestion_id               Int                           @db.SmallInt
+  detalle_otro                  String?
+  analisis_recuperacion_semanas analisis_recuperacion_semanas @relation(fields: [analisis_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_recuperacion_gestiones_analisis")
+  tipo_gestion_recuperacion     tipo_gestion_recuperacion     @relation(fields: [tipo_gestion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recuperacion_gestiones_tipo")
+
+  @@id([analisis_id, tipo_gestion_id], map: "pk_recuperacion_gestiones")
+}
+
+model regimen_principal {
+  id       Int        @id @default(autoincrement()) @db.SmallInt
+  nombre   String
+  clientes clientes[]
+}
+
+model retroactivo_evaluacion_conveniencia {
+  id                               String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  retroactivo_id                   String                           @db.Uuid
+  pregunta                         String
+  respuesta                        Boolean?
+  analisis_modalidad40_retroactivo analisis_modalidad40_retroactivo @relation(fields: [retroactivo_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_retroactivo_evaluacion_retroactivo")
+}
+
+model situacion_patrimonial {
+  id                              String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnostico_f1_id               String                        @unique @db.Uuid
+  saldo_cuenta_individual         Decimal?                      @db.Decimal(12, 2)
+  aportaciones_voluntarias        Decimal?                      @db.Decimal(12, 2)
+  ahorros_inversiones_adicionales Decimal?                      @db.Decimal(12, 2)
+  bienes_patrimoniales            String?
+  creditos_deudas_vigentes        String?
+  ingreso_mensual                 Decimal?                      @db.Decimal(12, 2)
+  otras_fuentes_ingreso           String?
+  ingreso_conyuge                 Decimal?                      @db.Decimal(12, 2)
+  seguros                         String?
+  estado_salud                    estado_salud?
+  padecimientos                   String?
+  estado_civil                    estado_civil?
+  edad_conyuge                    Int?                          @db.SmallInt
+  actividad_economica_conyuge     String?
+  diagnostico_especializado       diagnostico_especializado     @relation(fields: [diagnostico_f1_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_situacion_patrimonial_diagnostico")
+  situacion_patrimonial_hijos     situacion_patrimonial_hijos[]
+}
+
+model situacion_patrimonial_hijos {
+  id                       String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  situacion_patrimonial_id String                @db.Uuid
+  numero_hijos             Int?                  @default(0) @db.SmallInt
+  tiene_discapacidad       Boolean?              @default(false)
+  edad                     Int?                  @db.SmallInt
+  situacion_patrimonial    situacion_patrimonial @relation(fields: [situacion_patrimonial_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_situacion_patrimonial_hijos_situacion")
+}
+
+model tipo_correccion {
+  id                   Int                    @id @default(autoincrement()) @db.SmallInt
+  nombre               String
+  correcciones_cliente correcciones_cliente[]
+}
+
+model tipo_documento {
+  id                  Int                   @id @default(autoincrement()) @db.SmallInt
+  nombre              String                @unique
+  documentos_clientes documentos_clientes[]
+}
+
+model tipo_evidencia_recuperacion {
+  id                      Int                       @id @default(autoincrement()) @db.SmallInt
+  nombre                  String                    @unique
+  recuperacion_evidencias recuperacion_evidencias[]
+}
+
+model tipo_gestion_recuperacion {
+  id                     Int                      @id @default(autoincrement()) @db.SmallInt
+  nombre                 String                   @unique
+  recuperacion_gestiones recuperacion_gestiones[]
+}
+
+model tipo_inconsistencia_detectada {
+  id                                    Int                                     @id @default(autoincrement()) @db.SmallInt
+  nombre                                String                                  @unique
+  diagnostico_inconsistencias_generales diagnostico_inconsistencias_generales[]
+}
+
+model unificacion_nss_detalle {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correccion_id               String                        @unique @db.Uuid
+  nss_principal_elegido       String?                       @db.VarChar(11)
+  criterio_seleccion          criterio_seleccion_nss?
+  etapa_institucional_actual  etapa_institucional_nss?
+  correcciones_cliente        correcciones_cliente          @relation(fields: [correccion_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_unificacion_nss_detalle_correccion")
+  unificacion_nss_secundarios unificacion_nss_secundarios[]
+}
+
+model unificacion_nss_secundarios {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unificacion_id          String                  @db.Uuid
+  nss                     String?                 @db.VarChar(11)
+  observaciones           String?
+  unificacion_nss_detalle unificacion_nss_detalle @relation(fields: [unificacion_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_unificacion_nss_secundarios_detalle")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model conceptos_dispersion {
+  id                          Int                           @id @default(autoincrement()) @db.SmallInt
+  nombre                      String                        @unique @db.VarChar(50)
+  descripcion                 String?
+  tipo_destino                tipo_destino_dispersion
+  incluye_en_prenomina        Boolean                       @default(false)
+  es_remanente                Boolean                       @unique(map: "uq_concepto_remanente", where: raw("es_remanente")) @default(false)
+  orden                       Int                           @default(0) @db.SmallInt
+  activo                      Boolean                       @default(true)
+  comisiones                  comisiones[]
+  contrato_dispersion_detalle contrato_dispersion_detalle[]
+  esquemas_dispersion_detalle esquemas_dispersion_detalle[]
+}
+
+model configuracion_comisiones_obsoleta {
+  id             String       @id(map: "configuracion_comisiones_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asesor_id      String       @db.Uuid
+  tipo_asesor_id Int          @db.SmallInt
+  porcentaje     Decimal      @db.Decimal(5, 2)
+  vigencia_desde DateTime     @db.Date
+  vigencia_hasta DateTime?    @db.Date
+  activo         Boolean      @default(true)
+  usuarios       usuarios     @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_config_comision_asesor")
+  tipos_asesor   tipos_asesor @relation(fields: [tipo_asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_config_comision_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contrato_dispersion_detalle {
+  id                                                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id                                                    String                  @db.Uuid
+  concepto_id                                                    Int                     @db.SmallInt
+  beneficiario_id                                                String?                 @db.Uuid
+  tipo_calculo                                                   tipo_calculo_dispersion
+  valor                                                          Decimal                 @db.Decimal(12, 2)
+  base_calculo                                                   base_calculo_dispersion @default(monto_bruto)
+  orden                                                          Int                     @default(0) @db.SmallInt
+  esquema_origen_id                                              Int?                    @db.SmallInt
+  activo                                                         Boolean                 @default(true)
+  creado_por                                                     String?                 @db.Uuid
+  creado_en                                                      DateTime                @default(now()) @db.Timestamptz(6)
+  actualizado_en                                                 DateTime                @default(now()) @db.Timestamptz(6)
+  comisiones                                                     comisiones[]
+  usuarios_contrato_dispersion_detalle_beneficiario_idTousuarios usuarios?               @relation("contrato_dispersion_detalle_beneficiario_idTousuarios", fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  conceptos_dispersion                                           conceptos_dispersion    @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contratos                                                      contratos               @relation(fields: [contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_contrato_dispersion_detalle_creado_porTousuarios      usuarios?               @relation("contrato_dispersion_detalle_creado_porTousuarios", fields: [creado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  esquemas_dispersion                                            esquemas_dispersion?    @relation(fields: [esquema_origen_id], references: [id], onUpdate: NoAction)
+
+  @@unique([contrato_id, concepto_id], map: "uq_contrato_concepto")
+  @@index([beneficiario_id], map: "ix_cdd_beneficiario")
+  @@index([contrato_id], map: "ix_cdd_contrato")
+}
+
+model esquemas_dispersion {
+  id                          Int                           @id @default(autoincrement()) @db.SmallInt
+  nombre                      String                        @unique @db.VarChar(100)
+  descripcion                 String?
+  servicio_id                 Int                           @db.SmallInt
+  tipo_asesor_id              Int?                          @db.SmallInt
+  activo                      Boolean                       @default(true)
+  creado_por                  String?                       @db.Uuid
+  creado_en                   DateTime                      @default(now()) @db.Timestamptz(6)
+  actualizado_en              DateTime                      @default(now()) @db.Timestamptz(6)
+  contrato_dispersion_detalle contrato_dispersion_detalle[]
+  usuarios                    usuarios?                     @relation(fields: [creado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicios                   servicios                     @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipos_asesor                tipos_asesor?                 @relation(fields: [tipo_asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  esquemas_dispersion_detalle esquemas_dispersion_detalle[]
+
+  @@index([servicio_id], map: "ix_esquemas_servicio")
+  @@index([tipo_asesor_id], map: "ix_esquemas_tipo_asesor")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model esquemas_dispersion_detalle {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  esquema_id           Int                     @db.SmallInt
+  concepto_id          Int                     @db.SmallInt
+  tipo_calculo         tipo_calculo_dispersion
+  valor                Decimal                 @db.Decimal(12, 2)
+  base_calculo         base_calculo_dispersion @default(monto_bruto)
+  orden                Int                     @default(0) @db.SmallInt
+  conceptos_dispersion conceptos_dispersion    @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  esquemas_dispersion  esquemas_dispersion     @relation(fields: [esquema_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([esquema_id, concepto_id], map: "uq_esquema_concepto")
+}
+
+enum aplicabilidad_recuperacion {
+  si
+  no
+  requiere_mas_evidencia
+}
+
+enum categoria_tramite {
+  no_aplica
+  pendiente
+  en_proceso
+  completado
+  excepcion
+}
+
+enum conveniencia_pension {
+  si
+  no
+  depende_escenario
+}
+
+enum criterio_seleccion_nss {
+  vinculo_curp
+  antiguedad
+  credito_infonavit
+  estatus_pension
+}
+
+enum cumplimiento_criterio {
+  cumple
+  no_cumple
+  requiere_validar
+}
+
+enum estado_civil {
+  soltero
+  casado
+  divorciado
+  viudo
+  concubinato
+}
+
+enum estado_confirmacion {
+  si
+  no
+  por_confirmar
+}
+
+enum estado_salud {
+  bueno
+  regular
+  malo
+}
+
+enum estatus_evento_agenda {
+  pendiente
+  cumplido
+  reagendado
+  cancelado
+}
+
+enum estatus_inconsistencia {
+  pendiente
+  en_tramite
+  recuperado
+  no_procedente
+}
+
+enum estatus_plan_accion {
+  pendiente
+  en_proceso
+  hecho
+}
+
+enum etapa_institucional_nss {
+  ingreso_validacion
+  dictaminacion_imss
+  migracion_historial
+  notificacion_consar_infonavit
+}
+
+enum evaluacion_modalidad {
+  aplica
+  no_aplica
+  aplica_con_restricciones
+  requiere_regularizacion
+  temporal
+  evaluar
+  requiere_contabilidad
+}
+
+enum evaluacion_retroactivo {
+  conviene
+  no_conviene
+  conviene_parcialmente
+  requiere_calculo_validacion
+}
+
+enum objetivo_cliente {
+  pensionarse_asap
+  mejorar_monto_pension
+  negativa_pension
+}
+
+enum sexo_cliente {
+  hombre
+  mujer
+}
+
+enum si_no_parcial {
+  si
+  no
+  parcialmente
+}
+
+enum tipo_aviso {
+  cita
+  tramite
+}
+
+enum tipo_modalidad {
+  modalidad_10
+  modalidad_40
+  modalidad_40_retroactiva
+  mixto
+}
+
+enum tipo_pension {
+  cesantia
+  vejez
+  invalidez
+  viudez
+  otro
+}
+
+enum validacion_estado {
+  si
+  no
+  requiere_validar
+}
+
+enum base_calculo_dispersion {
+  monto_bruto
+  monto_neto
+}
+
+enum tipo_calculo_dispersion {
+  porcentaje
+  monto_fijo
+}
+
+enum tipo_destino_dispersion {
+  usuario
+  externo
+  empresa
 }
