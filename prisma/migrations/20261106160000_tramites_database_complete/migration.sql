@@ -254,42 +254,57 @@ CHECK (
 );
 
 -- Catálogos H3GA: agregar una sola vez al FINAL de migracion_consolidada.sql
--- NO ejecutar sobre h3ga; solo en una base nueva que aplique la migración.
+-- Catálogos H3GA: inserción segura con anulación de valores de sistema e ignorar duplicados
 
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (1, 'No aplica', NULL, 'no_aplica', NULL, FALSE, NULL, NULL);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (2, 'Por iniciar', NULL, 'pendiente', 10, FALSE, NULL, NULL);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (3, 'En proceso cliente', NULL, 'en_proceso', NULL, TRUE, 20, 90);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (4, 'En proceso asesor', NULL, 'en_proceso', NULL, TRUE, 20, 90);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (5, 'En proceso Instituto', NULL, 'en_proceso', NULL, TRUE, 20, 90);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (6, 'Finalizado', NULL, 'completado', 100, FALSE, NULL, NULL);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (7, 'Bloqueado', NULL, 'excepcion', NULL, FALSE, NULL, NULL);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (8, 'Cancelado', NULL, 'excepcion', NULL, FALSE, NULL, NULL);
-INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) VALUES (9, 'Detenido', NULL, 'excepcion', NULL, FALSE, NULL, NULL);
+INSERT INTO public.estatus_tramite (id, nombre, descripcion, categoria, avance_porcentaje_fijo, avance_editable, avance_min, avance_max) OVERRIDING SYSTEM VALUE VALUES 
+(1, 'No aplica', NULL, 'no_aplica', NULL, FALSE, NULL, NULL),
+(2, 'Por iniciar', NULL, 'pendiente', 10, FALSE, NULL, NULL),
+(3, 'En proceso cliente', NULL, 'en_proceso', NULL, TRUE, 20, 90),
+(4, 'En proceso asesor', NULL, 'en_proceso', NULL, TRUE, 20, 90),
+(5, 'En proceso Instituto', NULL, 'en_proceso', NULL, TRUE, 20, 90),
+(6, 'Finalizado', NULL, 'completado', 100, FALSE, NULL, NULL),
+(7, 'Bloqueado', NULL, 'excepcion', NULL, FALSE, NULL, NULL),
+(8, 'Cancelado', NULL, 'excepcion', NULL, FALSE, NULL, NULL),
+(9, 'Detenido', NULL, 'excepcion', NULL, FALSE, NULL, NULL)
+ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.fase_modalidad (id, nombre, orden) VALUES (1, 'Prospecto', 1);
-INSERT INTO public.fase_modalidad (id, nombre, orden) VALUES (2, 'Documentación', 2);
-INSERT INTO public.fase_modalidad (id, nombre, orden) VALUES (3, 'En análisis', 3);
-INSERT INTO public.fase_modalidad (id, nombre, orden) VALUES (4, 'Cotización', 4);
-INSERT INTO public.fase_modalidad (id, nombre, orden) VALUES (5, 'Autorizado', 5);
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (1, 'Tener cobertura médica y prestaciones');
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (2, 'Seguir generando semanas');
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (3, 'Reactivar derechos');
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (4, 'Mejorar continuidad de cotización');
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (5, 'Evaluar transición posterior a Modalidad 40');
-INSERT INTO public.objetivo_modalidad_10 (id, nombre) VALUES (6, 'Otro');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (1, 'Aumentar salario promedio');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (2, 'Completar semanas faltantes');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (3, 'Mejorar pensión Ley 73');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (4, 'Mantener cotización para pensión');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (5, 'Reingresar tras baja por mora');
-INSERT INTO public.objetivo_modalidad_40 (id, nombre) VALUES (6, 'Otro');
-INSERT INTO public.estatus_envio_documento (id, nombre, orden, es_final) VALUES (1, 'Pendiente', 1, FALSE);
-INSERT INTO public.estatus_envio_documento (id, nombre, orden, es_final) VALUES (2, 'No validado', 2, FALSE);
-INSERT INTO public.estatus_envio_documento (id, nombre, orden, es_final) VALUES (3, 'Validado', 3, TRUE);
-INSERT INTO public.estatus_envio_documento (id, nombre, orden, es_final) VALUES (4, 'Cancelado', 4, TRUE);
+INSERT INTO public.fase_modalidad (id, nombre, orden) OVERRIDING SYSTEM VALUE VALUES 
+(1, 'Prospecto', 1),
+(2, 'Documentación', 2),
+(3, 'En análisis', 3),
+(4, 'Cotización', 4),
+(5, 'Autorizado', 5)
+ON CONFLICT (id) DO NOTHING;
 
-SELECT setval(pg_get_serial_sequence('public.fase_modalidad', 'id'), (SELECT MAX(id) FROM public.fase_modalidad), true);
-SELECT setval(pg_get_serial_sequence('public.estatus_tramite', 'id'), (SELECT MAX(id) FROM public.estatus_tramite), true);
-SELECT setval(pg_get_serial_sequence('public.objetivo_modalidad_10', 'id'), (SELECT MAX(id) FROM public.objetivo_modalidad_10), true);
-SELECT setval(pg_get_serial_sequence('public.objetivo_modalidad_40', 'id'), (SELECT MAX(id) FROM public.objetivo_modalidad_40), true);
-SELECT setval(pg_get_serial_sequence('public.estatus_envio_documento', 'id'), (SELECT MAX(id) FROM public.estatus_envio_documento), true);
+INSERT INTO public.objetivo_modalidad_10 (id, nombre) OVERRIDING SYSTEM VALUE VALUES 
+(1, 'Tener cobertura médica y prestaciones'),
+(2, 'Seguir generando semanas'),
+(3, 'Reactivar derechos'),
+(4, 'Mejorar continuidad de cotización'),
+(5, 'Evaluar transición posterior a Modalidad 40'),
+(6, 'Otro')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.objetivo_modalidad_40 (id, nombre) OVERRIDING SYSTEM VALUE VALUES 
+(1, 'Aumentar salario promedio'),
+(2, 'Completar semanas faltantes'),
+(3, 'Mejorar pensión Ley 73'),
+(4, 'Mantener cotización para pensión'),
+(5, 'Reingresar tras baja por mora'),
+(6, 'Otro')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.estatus_envio_documento (id, nombre, orden, es_final) OVERRIDING SYSTEM VALUE VALUES 
+(1, 'Pendiente', 1, FALSE),
+(2, 'No validado', 2, FALSE),
+(3, 'Validado', 3, TRUE),
+(4, 'Cancelado', 4, TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- Ajuste seguro de secuencias de autoincremento
+
+SELECT setval(pg_get_serial_sequence('public.fase_modalidad', 'id'), COALESCE((SELECT MAX(id) FROM public.fase_modalidad), 1), true);
+SELECT setval(pg_get_serial_sequence('public.estatus_tramite', 'id'), COALESCE((SELECT MAX(id) FROM public.estatus_tramite), 1), true);
+SELECT setval(pg_get_serial_sequence('public.objetivo_modalidad_10', 'id'), COALESCE((SELECT MAX(id) FROM public.objetivo_modalidad_10), 1), true);
+SELECT setval(pg_get_serial_sequence('public.objetivo_modalidad_40', 'id'), COALESCE((SELECT MAX(id) FROM public.objetivo_modalidad_40), 1), true);
+SELECT setval(pg_get_serial_sequence('public.estatus_envio_documento', 'id'), COALESCE((SELECT MAX(id) FROM public.estatus_envio_documento), 1), true);
