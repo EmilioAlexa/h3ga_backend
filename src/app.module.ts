@@ -7,7 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { RolesModule } from './roles/roles.module';
 import { ClientesModule } from './clientes/clientes.module';
-import { RutaModule } from './ruta/ruta.module';
+import { GestionModule } from './gestion/gestion.module';
 import { FinanzasModule } from './finanzas/finanzas.module';
 import { DatabaseModule } from './database/database.module';
 
@@ -22,7 +22,7 @@ import { DatabaseModule } from './database/database.module';
     UsuariosModule,
     RolesModule,  
     ClientesModule,
-    RutaModule,
+    GestionModule,
     FinanzasModule,
     DatabaseModule,
   ],
