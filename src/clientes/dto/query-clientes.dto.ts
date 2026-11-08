@@ -8,8 +8,10 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class QueryClientesDto {
+  @ApiPropertyOptional({ description: 'Número de página, desde 1.', minimum: 1, default: 1 })
   @Type(() => Number)
   @IsOptional()
   @Max(1_000_000)
@@ -17,7 +19,9 @@ export class QueryClientesDto {
   @Min(1)
   page = 1;
 
+  @ApiPropertyOptional({ description: 'Cantidad de resultados por página.', minimum: 1, maximum: 100, default: 20 })
   @Type(() => Number)
+  @ApiPropertyOptional({ description: 'Búsqueda por nombre, apellidos o correo electrónico.', maxLength: 100 })
   @IsOptional()
   @IsInt()
   @Min(1)
