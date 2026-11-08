@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -70,5 +71,15 @@ export class CatalogosController {
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
     return this.catalogosService.update(catalogo, String(id), dto, usuario);
+  }
+
+  @Delete(':catalogo/:id')
+  @Roles('administrador', 'administrador financiero')
+  remove(
+    @Param('catalogo') catalogo: string,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.catalogosService.remove(catalogo, String(id), usuario);
   }
 }
