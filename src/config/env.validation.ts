@@ -12,6 +12,7 @@ export const envValidationSchema = Join.object({
     JWT_SECRET: Join.string().min(32).required(),
 
     JWT_EXPIRES_IN: Join.string().default('1h'),
+    SWAGGER_ENABLED: Join.string().valid('true', 'false').default('false'),
     }).options({
     allowUnknown: true,
     abortEarly: false, 

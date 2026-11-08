@@ -111,9 +111,14 @@ pnpm test:e2e
 pnpm test:cov
 
 Documentación API (Swagger)
-Una vez que el servidor esté en ejecución (pnpm run start:dev), puedes acceder a la documentación interactiva de la API navegando a:
+Swagger está deshabilitado por defecto. Para habilitarlo en un entorno autorizado, configura `SWAGGER_ENABLED=true` en el archivo `.env` y ejecuta `pnpm run start:dev`.
 
-URL Local: http://localhost:3000/api/docs
+- Interfaz interactiva: `http://localhost:3000/api/docs`
+- Documento OpenAPI JSON: `http://localhost:3000/api/docs-json`
+
+En producción, deja `SWAGGER_ENABLED=false` salvo que se haya autorizado explícitamente publicar la documentación. Para probar rutas protegidas, inicia sesión en `POST /api/auth/login`, copia `access_token` y úsalo en el botón **Authorize** con el esquema Bearer JWT. Swagger documenta los guards y permisos existentes; no los omite.
+
+La documentación es parte de cada entrega: los controladores deben declarar etiquetas, propósito, seguridad, roles y respuestas; los DTO deben describir campos y validaciones; los endpoints de retiro deben explicar si desactivan o eliminan. No documentes rutas futuras antes de implementarlas. El Plan Maestro mantiene esta regla para las etapas 10.2–10.10.
 
 Convenciones de Git y Commits
 Para mantener un historial de versión uniforme, se recomienda seguir el estándar de Conventional Commits:
