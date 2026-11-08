@@ -48,6 +48,8 @@ const CATALOGOS_CON_ACTIVO = new Set<Catalogo>([
   'formas-pago',
   'tipos-cobro',
   'tipos-asesor',
+  'conceptos-dispersion',
+  'esquemas-dispersion',
 ]);
 
 const MUTABLES: Record<string, readonly string[]> = {
@@ -232,7 +234,7 @@ export class CatalogosService {
       case 'conceptos-dispersion': {
         const where: Prisma.conceptos_dispersionWhereInput = {
           ...(q ? { nombre: { contains: q, mode: 'insensitive' } } : {}),
-          ...(query.activo === undefined ? {} : { activo: query.activo }),
+          ...activeFilter,
         };
         [data, total] = await Promise.all([
           this.prisma.conceptos_dispersion.findMany({
@@ -307,7 +309,7 @@ export class CatalogosService {
       case 'esquemas-dispersion': {
         const where: Prisma.esquemas_dispersionWhereInput = {
           ...(q ? { nombre: { contains: q, mode: 'insensitive' } } : {}),
-          ...(query.activo === undefined ? {} : { activo: query.activo }),
+          ...activeFilter,
         };
         [data, total] = await Promise.all([
           this.prisma.esquemas_dispersion.findMany({
@@ -565,6 +567,163 @@ export class CatalogosService {
     }
   }
 
+  async remove(
+    catalogoParam: string,
+    idParam: string,
+    usuario: UsuarioAutenticado,
+  ) {
+    const catalogo = this.getCatalogo(catalogoParam);
+    this.ensureCanDelete(usuario);
+    const id = this.parseId(idParam);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        switch (catalogo) {
+          case 'servicios':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.servicios.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.servicios.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'formas-pago':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.formas_pago.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.formas_pago.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'tipos-cobro':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.tipos_cobro.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.tipos_cobro.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'tipos-asesor':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.tipos_asesor.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.tipos_asesor.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'conceptos-dispersion':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.conceptos_dispersion.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.conceptos_dispersion.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'esquemas-dispersion':
+            return this.deactivate(
+              catalogo,
+              id,
+              () => tx.esquemas_dispersion.findUnique({ where: { id }, select: { id: true, activo: true } }),
+              () => tx.esquemas_dispersion.update({ where: { id }, data: { activo: false }, select: { id: true, activo: true } }),
+            );
+          case 'estados-contrato': {
+            const row = await tx.estados_contratos.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de contrato no encontrado');
+            const references = await tx.contratos.count({
+              where: { estado_contrato_id: id },
+            });
+            this.ensureNoReferences(references, catalogo);
+            await tx.estados_contratos.delete({ where: { id } });
+            break;
+          }
+          case 'estados-pago': {
+            const row = await tx.estados_pago.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de pago no encontrado');
+            const [payments, oldHistory, newHistory] = await Promise.all([
+              tx.pagos.count({ where: { estado_pago_id: id } }),
+              tx.historial_estados_pago.count({ where: { estado_anterior_id: id } }),
+              tx.historial_estados_pago.count({ where: { estado_nuevo_id: id } }),
+            ]);
+            this.ensureNoReferences(payments + oldHistory + newHistory, catalogo);
+            await tx.estados_pago.delete({ where: { id } });
+            break;
+          }
+          case 'estados-pago-programado': {
+            const row = await tx.estados_pago_programado.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de pago programado no encontrado');
+            const references = await tx.pagos_programados.count({
+              where: { estado_id: id },
+            });
+            this.ensureNoReferences(references, catalogo);
+            await tx.estados_pago_programado.delete({ where: { id } });
+            break;
+          }
+          case 'tipos-evidencia-pago': {
+            const row = await tx.tipos_evidencia_pago.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Tipo de evidencia no encontrado');
+            const references = await tx.evidencias_pago.count({
+              where: { tipo_evidencia_id: id },
+            });
+            this.ensureNoReferences(references, catalogo);
+            await tx.tipos_evidencia_pago.delete({ where: { id } });
+            break;
+          }
+          case 'estados-comision': {
+            const row = await tx.estados_comisiones.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de comisión no encontrado');
+            const references = await tx.comisiones.count({ where: { estado_id: id } });
+            this.ensureNoReferences(references, catalogo);
+            await tx.estados_comisiones.delete({ where: { id } });
+            break;
+          }
+          case 'estados-corte': {
+            const row = await tx.estados_corte.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de corte no encontrado');
+            const references = await tx.cortes_financieros.count({
+              where: { estado_id: id },
+            });
+            this.ensureNoReferences(references, catalogo);
+            await tx.estados_corte.delete({ where: { id } });
+            break;
+          }
+          case 'estados-prenomina': {
+            const row = await tx.estados_prenomina.findUnique({
+              where: { id },
+              select: { id: true },
+            });
+            if (!row) throw new NotFoundException('Estado de prenómina no encontrado');
+            const references = await tx.prenomina.count({ where: { estado_id: id } });
+            this.ensureNoReferences(references, catalogo);
+            await tx.estados_prenomina.delete({ where: { id } });
+            break;
+          }
+        }
+
+        return {
+          catalogo,
+          id,
+          accion: 'eliminado_fisicamente',
+          mensaje: 'El registro fue eliminado porque no tiene referencias',
+        };
+      });
+    } catch (error) {
+      this.handleDeleteError(error);
+    }
+  }
+
   private buildActiveFilter(
     catalogo: Catalogo,
     query: QueryCatalogosDto,
@@ -572,7 +731,7 @@ export class CatalogosService {
   ): { activo?: boolean } {
     if (!CATALOGOS_CON_ACTIVO.has(catalogo)) return {};
     if (usuario.roles.nombre === 'asesor') return { activo: true };
-    return query.activo === undefined ? {} : { activo: query.activo };
+    return { activo: query.activo ?? true };
   }
 
   private validatePayload(
@@ -633,6 +792,65 @@ export class CatalogosService {
         'Este catálogo es de solo lectura en la etapa 10.1',
       );
     }
+  }
+
+  private ensureCanDelete(usuario: UsuarioAutenticado): void {
+    this.ensureAuthenticatedRole(usuario);
+    if (!ROLES_ADMINISTRATIVOS.includes(usuario.roles.nombre)) {
+      throw new ForbiddenException(
+        'Solo el administrador y el administrador financiero pueden retirar catálogos',
+      );
+    }
+  }
+
+  private async deactivate(
+    catalogo: Catalogo,
+    id: number,
+    findRecord: () => Promise<{ id: number; activo: boolean } | null>,
+    deactivateRecord: () => Promise<{ id: number; activo: boolean }>,
+  ) {
+    const row = await findRecord();
+    if (!row) throw new NotFoundException('Registro de catálogo no encontrado');
+    if (!row.activo) {
+      return {
+        catalogo,
+        id,
+        accion: 'ya_desactivado',
+        mensaje: 'El registro ya estaba desactivado',
+        activo: false,
+      };
+    }
+
+    const updated = await deactivateRecord();
+    return {
+      catalogo,
+      id: updated.id,
+      accion: 'desactivado',
+      mensaje: 'El registro fue desactivado y se conservó su historial',
+      activo: updated.activo,
+    };
+  }
+
+  private ensureNoReferences(references: number, catalogo: Catalogo): void {
+    if (references > 0) {
+      throw new ConflictException(
+        `No se puede eliminar ${catalogo}: tiene ${references} referencia(s)`,
+      );
+    }
+  }
+
+  private handleDeleteError(error: unknown): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003' || error.code === 'P2014') {
+        throw new ConflictException(
+          'El registro tiene referencias y no puede eliminarse sin afectar información relacionada',
+        );
+      }
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Registro de catálogo no encontrado');
+      }
+    }
+    throw error;
   }
 
   private ensureAuthenticatedRole(usuario: UsuarioAutenticado): void {
