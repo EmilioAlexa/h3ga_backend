@@ -53,28 +53,30 @@ model clientes {
   credenciales_correo_cliente   credenciales_correo_cliente?
   diagnostico_especializado     diagnostico_especializado?
   documentos_clientes           documentos_clientes[]
+  envios_documento              envios_documento[]
   etapas_tramite                etapas_tramite[]
   eventos_agenda                eventos_agenda[]
   historial_laboral             historial_laboral?
   informacion_fiscal            informacion_fiscal?
   modalidades_aplicacion        modalidades_aplicacion[]
   periodos_inconsistencias      periodos_inconsistencias[]
+  tareas_auxiliar               tareas_auxiliar[]
 }
 
 model comisiones {
   id                             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   pago_id                        String                       @db.Uuid
-  beneficiario_id                String?                      @db.Uuid
   monto_base                     Decimal                      @db.Decimal(12, 2)
   monto_comision                 Decimal                      @db.Decimal(12, 2)
   estado_id                      Int                          @db.SmallInt
   fecha_calculo                  DateTime                     @default(now()) @db.Timestamptz(6)
   observaciones                  String?
+  beneficiario_id                String?                      @db.Uuid
   concepto_id                    Int                          @db.SmallInt
-  tipo_calculo                   tipo_calculo_dispersion
-  valor_aplicado                 Decimal                      @db.Decimal(12, 2)
   contrato_dispersion_detalle_id String?                      @db.Uuid
   detalle_prenomina_id           String?                      @db.Uuid
+  tipo_calculo                   tipo_calculo_dispersion
+  valor_aplicado                 Decimal                      @db.Decimal(12, 2)
   conceptos_dispersion           conceptos_dispersion         @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   contrato_dispersion_detalle    contrato_dispersion_detalle? @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
   detalle_prenomina              detalle_prenomina?           @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
@@ -143,9 +145,9 @@ model detalle_corte {
 model detalle_prenomina {
   id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   prenomina_id      String       @db.Uuid
-  beneficiario_id   String       @db.Uuid
   monto_referencial Decimal?     @db.Decimal(12, 2)
   observaciones     String?
+  beneficiario_id   String       @db.Uuid
   comisiones        comisiones[]
   prenomina         prenomina    @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
   usuarios          usuarios     @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
@@ -434,14 +436,22 @@ model usuarios {
   detalle_prenomina                                                                 detalle_prenomina[]
   diagnostico_especializado                                                         diagnostico_especializado[]
   documentos_clientes                                                               documentos_clientes[]
+  envios_documento                                                                  envios_documento[]
   esquemas_dispersion                                                               esquemas_dispersion[]
   etapas_tramite_historial                                                          etapas_tramite_historial[]
   eventos_agenda                                                                    eventos_agenda[]
   evidencias_pago                                                                   evidencias_pago[]
+  formatos_institucionales_formatos_institucionales_actualizado_porTousuarios       formatos_institucionales[]          @relation("formatos_institucionales_actualizado_porTousuarios")
+  formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]          @relation("formatos_institucionales_creado_porTousuarios")
   historial_estados_pago                                                            historial_estados_pago[]
   pagos                                                                             pagos[]
   prenomina                                                                         prenomina[]
+  tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                   @relation("tareas_auxiliar_asignado_porTousuarios")
+  tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                   @relation("tareas_auxiliar_auxiliar_idTousuarios")
+  tareas_auxiliar_tareas_auxiliar_validado_porTousuarios                            tareas_auxiliar[]                   @relation("tareas_auxiliar_validado_porTousuarios")
   roles                                                                             roles                               @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
+  versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]               @relation("versiones_documento_revisor_idTousuarios")
+  versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]               @relation("versiones_documento_subido_porTousuarios")
 }
 
 model afore {
@@ -660,6 +670,7 @@ model documentos_clientes {
   clientes                clientes             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_cliente")
   tipo_documento          tipo_documento       @relation(fields: [tipo_documento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_tipo")
   usuarios                usuarios?            @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_usuario")
+  envios_documento        envios_documento[]
 }
 
 model escenario_pension {
@@ -682,16 +693,6 @@ model escenario_pension {
   diagnostico_especializado    diagnostico_especializado @relation(fields: [diagnostico_f1_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_escenario_pension_diagnostico")
 }
 
-model estatus_modalidad {
-  id                                                                               Int                      @id @default(autoincrement()) @db.SmallInt
-  nombre                                                                           String                   @unique
-  orden                                                                            Int                      @db.SmallInt
-  es_final                                                                         Boolean
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m10_idToestatus_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad")
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m40_idToestatus_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad")
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad modalidades_aplicacion[] @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad")
-}
-
 model estatus_tramite {
   id                                                                                     Int                        @id @default(autoincrement()) @db.SmallInt
   nombre                                                                                 String
@@ -704,6 +705,9 @@ model estatus_tramite {
   etapas_tramite                                                                         etapas_tramite[]
   etapas_tramite_historial_etapas_tramite_historial_estatus_anterior_idToestatus_tramite etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_anterior_idToestatus_tramite")
   etapas_tramite_historial_etapas_tramite_historial_estatus_nuevo_idToestatus_tramite    etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_nuevo_idToestatus_tramite")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m10_idToestatus_modalidad        modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40_idToestatus_modalidad        modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad       modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad")
 }
 
 model estrategia_recomendada_tipo {
@@ -849,11 +853,22 @@ model modalidades_aplicacion {
   fecha_cita_imss                                                             DateTime?                 @db.Date
   ultimo_salario_diario_registrado                                            Decimal?                  @db.Decimal(10, 2)
   creado_el                                                                   DateTime                  @default(now()) @db.Timestamptz(6)
+  actualizado_el                                                              DateTime                  @default(now()) @db.Timestamptz(6)
+  aplica_m10                                                                  Boolean                   @default(false)
+  aplica_m40                                                                  Boolean                   @default(false)
+  aplica_m40r                                                                 Boolean                   @default(false)
+  fase_m10_id                                                                 Int?                      @db.SmallInt
+  fase_m40_id                                                                 Int?                      @db.SmallInt
+  fase_m40r_id                                                                Int?                      @db.SmallInt
+  motivo_cierre                                                               String?
   clientes                                                                    clientes                  @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_cliente")
   diagnostico_especializado                                                   diagnostico_especializado @relation(fields: [diagnostico_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_diagnostico")
-  estatus_modalidad_modalidades_aplicacion_estatus_m10_idToestatus_modalidad  estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad", fields: [estatus_m10_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m10")
-  estatus_modalidad_modalidades_aplicacion_estatus_m40_idToestatus_modalidad  estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad", fields: [estatus_m40_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40")
-  estatus_modalidad_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad estatus_modalidad?        @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad", fields: [estatus_m40r_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40r")
+  estatus_modalidad_modalidades_aplicacion_estatus_m10_idToestatus_modalidad  estatus_tramite?          @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad", fields: [estatus_m10_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m10")
+  estatus_modalidad_modalidades_aplicacion_estatus_m40_idToestatus_modalidad  estatus_tramite?          @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad", fields: [estatus_m40_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40")
+  estatus_modalidad_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad estatus_tramite?          @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad", fields: [estatus_m40r_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modalidades_aplicacion_estatus_m40r")
+  fase_modalidad_modalidades_aplicacion_fase_m10_idTofase_modalidad           fase_modalidad?           @relation("modalidades_aplicacion_fase_m10_idTofase_modalidad", fields: [fase_m10_id], references: [id])
+  fase_modalidad_modalidades_aplicacion_fase_m40_idTofase_modalidad           fase_modalidad?           @relation("modalidades_aplicacion_fase_m40_idTofase_modalidad", fields: [fase_m40_id], references: [id])
+  fase_modalidad_modalidades_aplicacion_fase_m40r_idTofase_modalidad          fase_modalidad?           @relation("modalidades_aplicacion_fase_m40r_idTofase_modalidad", fields: [fase_m40r_id], references: [id])
 }
 
 model objetivo_diagnostico {
@@ -977,6 +992,7 @@ model tipo_documento {
   id                  Int                   @id @default(autoincrement()) @db.SmallInt
   nombre              String                @unique
   documentos_clientes documentos_clientes[]
+  envios_documento    envios_documento[]
 }
 
 model tipo_evidencia_recuperacion {
@@ -1102,6 +1118,109 @@ model esquemas_dispersion_detalle {
   esquemas_dispersion  esquemas_dispersion     @relation(fields: [esquema_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([esquema_id, concepto_id], map: "uq_esquema_concepto")
+}
+
+model dependencias_formato {
+  id                       Int                        @id @default(autoincrement()) @db.SmallInt
+  nombre                   String                     @unique
+  activo                   Boolean                    @default(true)
+  formatos_institucionales formatos_institucionales[]
+}
+
+model envios_documento {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id              String                  @db.Uuid
+  tarea_id                String?                 @db.Uuid
+  titulo                  String
+  tipo_documento_id       Int                     @db.SmallInt
+  creado_por              String                  @db.Uuid
+  estatus_id              Int                     @default(1) @db.SmallInt
+  documento_cliente_id    String?                 @db.Uuid
+  creado_en               DateTime                @default(now()) @db.Timestamptz(6)
+  actualizado_en          DateTime                @default(now()) @db.Timestamptz(6)
+  cerrado_en              DateTime?               @db.Timestamptz(6)
+  clientes                clientes                @relation(fields: [cliente_id], references: [id])
+  usuarios                usuarios                @relation(fields: [creado_por], references: [id])
+  documentos_clientes     documentos_clientes?    @relation(fields: [documento_cliente_id], references: [id])
+  estatus_envio_documento estatus_envio_documento @relation(fields: [estatus_id], references: [id])
+  tareas_auxiliar         tareas_auxiliar?        @relation(fields: [tarea_id], references: [id])
+  tipo_documento          tipo_documento          @relation(fields: [tipo_documento_id], references: [id])
+  versiones_documento     versiones_documento[]
+}
+
+model estatus_envio_documento {
+  id               Int                @id @default(autoincrement()) @db.SmallInt
+  nombre           String             @unique
+  orden            Int                @db.SmallInt
+  es_final         Boolean
+  envios_documento envios_documento[]
+}
+
+model fase_modalidad {
+  id                                                                         Int                      @id @default(autoincrement()) @db.SmallInt
+  nombre                                                                     String                   @unique
+  orden                                                                      Int                      @db.SmallInt
+  modalidades_aplicacion_modalidades_aplicacion_fase_m10_idTofase_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_fase_m10_idTofase_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_fase_m40_idTofase_modalidad  modalidades_aplicacion[] @relation("modalidades_aplicacion_fase_m40_idTofase_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_fase_m40r_idTofase_modalidad modalidades_aplicacion[] @relation("modalidades_aplicacion_fase_m40r_idTofase_modalidad")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model formatos_institucionales {
+  id                                                          Int                  @id @default(autoincrement()) @db.SmallInt
+  nombre                                                      String               @unique
+  descripcion                                                 String?
+  dependencia_id                                              Int                  @db.SmallInt
+  tipo_formato                                                tipo_formato
+  enlace_url                                                  String?
+  archivo_path                                                String?
+  creado_por                                                  String               @db.Uuid
+  creado_en                                                   DateTime             @default(now()) @db.Timestamptz(6)
+  actualizado_por                                             String?              @db.Uuid
+  actualizado_en                                              DateTime?            @db.Timestamptz(6)
+  activo                                                      Boolean              @default(true)
+  usuarios_formatos_institucionales_actualizado_porTousuarios usuarios?            @relation("formatos_institucionales_actualizado_porTousuarios", fields: [actualizado_por], references: [id])
+  usuarios_formatos_institucionales_creado_porTousuarios      usuarios             @relation("formatos_institucionales_creado_porTousuarios", fields: [creado_por], references: [id])
+  dependencias_formato                                        dependencias_formato @relation(fields: [dependencia_id], references: [id])
+}
+
+model tareas_auxiliar {
+  id                                              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                                      String                 @db.Uuid
+  titulo                                          String
+  instrucciones                                   String
+  asignado_por                                    String                 @db.Uuid
+  auxiliar_id                                     String                 @db.Uuid
+  estatus                                         estatus_tarea_auxiliar @default(pendiente)
+  creado_en                                       DateTime               @default(now()) @db.Timestamptz(6)
+  completado_en                                   DateTime?              @db.Timestamptz(6)
+  validado_por                                    String?                @db.Uuid
+  validado_en                                     DateTime?              @db.Timestamptz(6)
+  envios_documento                                envios_documento[]
+  usuarios_tareas_auxiliar_asignado_porTousuarios usuarios               @relation("tareas_auxiliar_asignado_porTousuarios", fields: [asignado_por], references: [id])
+  usuarios_tareas_auxiliar_auxiliar_idTousuarios  usuarios               @relation("tareas_auxiliar_auxiliar_idTousuarios", fields: [auxiliar_id], references: [id])
+  clientes                                        clientes               @relation(fields: [cliente_id], references: [id])
+  usuarios_tareas_auxiliar_validado_porTousuarios usuarios?              @relation("tareas_auxiliar_validado_porTousuarios", fields: [validado_por], references: [id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model versiones_documento {
+  id                                                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  envio_id                                          String              @db.Uuid
+  numero_version                                    Int                 @db.SmallInt
+  archivo_path                                      String
+  hash_archivo                                      String?             @db.VarChar(128)
+  subido_por                                        String              @db.Uuid
+  fecha_carga                                       DateTime            @default(now()) @db.Timestamptz(6)
+  resultado                                         resultado_revision?
+  comentario                                        String?
+  revisor_id                                        String?             @db.Uuid
+  fecha_revision                                    DateTime?           @db.Timestamptz(6)
+  envios_documento                                  envios_documento    @relation(fields: [envio_id], references: [id])
+  usuarios_versiones_documento_revisor_idTousuarios usuarios?           @relation("versiones_documento_revisor_idTousuarios", fields: [revisor_id], references: [id])
+  usuarios_versiones_documento_subido_porTousuarios usuarios            @relation("versiones_documento_subido_porTousuarios", fields: [subido_por], references: [id])
+
+  @@unique([envio_id, numero_version])
 }
 
 enum aplicabilidad_recuperacion {
@@ -1258,4 +1377,24 @@ enum tipo_destino_dispersion {
   usuario
   externo
   empresa
+}
+
+enum estatus_tarea_auxiliar {
+  pendiente
+  en_proceso
+  en_revision
+  correcciones
+  validada
+  cancelada
+}
+
+enum resultado_revision {
+  validado
+  no_validado
+}
+
+enum tipo_formato {
+  pdf
+  word
+  enlace
 }
