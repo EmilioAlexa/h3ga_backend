@@ -32,7 +32,10 @@ export class LoginUsuarioRespuestaDto {
 }
 
 export class LoginRespuestaDto {
-  @ApiProperty({ description: 'JWT para usar como Bearer token.', format: 'jwt' })
+  @ApiProperty({
+    description: 'JWT para usar como Bearer token.',
+    format: 'jwt',
+  })
   access_token: string;
 
   @ApiProperty({ type: LoginUsuarioRespuestaDto })
@@ -115,13 +118,23 @@ export class ClienteResumenRespuestaDto {
 }
 
 export class ClienteDetalleRespuestaDto extends ClienteResumenRespuestaDto {
-  @ApiPropertyOptional({ description: 'CURP; visible según el rol autorizado.', nullable: true })
+  @ApiPropertyOptional({
+    description: 'CURP; visible según el rol autorizado.',
+    nullable: true,
+  })
   curp?: string | null;
 
-  @ApiPropertyOptional({ description: 'RFC; visible según el rol autorizado.', nullable: true })
+  @ApiPropertyOptional({
+    description: 'RFC; visible según el rol autorizado.',
+    nullable: true,
+  })
   rfc?: string | null;
 
-  @ApiPropertyOptional({ description: 'Asesor asignado; visible solo para administración.', format: 'uuid', nullable: true })
+  @ApiPropertyOptional({
+    description: 'Asesor asignado; visible solo para administración.',
+    format: 'uuid',
+    nullable: true,
+  })
   asesor_id?: string | null;
 }
 
@@ -172,9 +185,85 @@ export class CatalogoRetiroRespuestaDto {
   })
   accion: string;
 
-  @ApiProperty({ description: 'Resultado del estado activo cuando aplica.', required: false })
+  @ApiProperty({
+    description: 'Resultado del estado activo cuando aplica.',
+    required: false,
+  })
   activo?: boolean;
 
   @ApiProperty()
   mensaje: string;
+}
+
+export class ContratoRelacionadoRespuestaDto {
+  @ApiProperty({ description: 'Identificador del registro relacionado.' })
+  id: string | number;
+
+  @ApiProperty({ description: 'Nombre mostrado para la relación.' })
+  nombre: string;
+}
+
+export class ContratoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  cliente_id: string;
+
+  @ApiProperty({ minimum: 1 })
+  servicio_id: number;
+
+  @ApiProperty({ format: 'uuid' })
+  asesor_id: string;
+
+  @ApiProperty({ maxLength: 50 })
+  folio: string;
+
+  @ApiProperty({ format: 'date' })
+  fecha_contrato: string;
+
+  @ApiProperty({ minimum: 1 })
+  estado_contrato_id: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  cantidad_pagos?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  observaciones?: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  creado_en: string;
+
+  @ApiProperty({
+    description:
+      'Cliente relacionado; solo muestra nombre, apellidos e identificador.',
+    type: 'object',
+    additionalProperties: true,
+  })
+  clientes: Record<string, unknown>;
+
+  @ApiProperty({ type: ContratoRelacionadoRespuestaDto })
+  servicios: ContratoRelacionadoRespuestaDto;
+
+  @ApiProperty({
+    description: 'Asesor asignado; solo muestra identificador y nombre.',
+    type: 'object',
+    additionalProperties: true,
+  })
+  usuarios: Record<string, unknown>;
+
+  @ApiProperty({
+    description: 'Estado contractual actual del catálogo.',
+    type: 'object',
+    additionalProperties: true,
+  })
+  estados_contratos: Record<string, unknown>;
+}
+
+export class ContratosPaginadosRespuestaDto {
+  @ApiProperty({ type: [ContratoRespuestaDto] })
+  data: ContratoRespuestaDto[];
+
+  @ApiProperty({ type: PaginacionRespuestaDto })
+  pagination: PaginacionRespuestaDto;
 }
