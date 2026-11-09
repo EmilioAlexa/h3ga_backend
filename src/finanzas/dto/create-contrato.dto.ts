@@ -27,12 +27,14 @@ export class CreateContratoDto {
   @Max(32767)
   servicio_id: number;
 
-  @ApiProperty({
-    description: 'UUID de un usuario activo asignado como asesor.',
+  @ApiPropertyOptional({
+    description:
+      'UUID del asesor activo a quien se asigna el contrato. Obligatorio para administradores; los asesores se asignan automáticamente desde el JWT y no deben enviar esta propiedad.',
     format: 'uuid',
   })
+  @IsOptional()
   @IsUUID()
-  asesor_id: string;
+  asesor_id?: string;
 
   @ApiProperty({
     description: 'Folio del contrato (máximo 50 caracteres).',

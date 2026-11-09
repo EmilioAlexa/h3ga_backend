@@ -11,7 +11,11 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { QueryContratosDto } from './dto/query-contratos.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 
-type UsuarioAutenticado = { id: string; roles: { nombre: string } };
+type UsuarioAutenticado = {
+  id: string;
+  activo: boolean;
+  roles: { nombre: string };
+};
 
 const ROLES_ADMINISTRATIVOS = ['administrador', 'administrador financiero'];
 
@@ -120,11 +124,30 @@ export class ContratosService {
   }
 
   async create(dto: CreateContratoDto, usuario: UsuarioAutenticado) {
-    this.ensureCanManage(usuario);
+    const esAsesor = usuario?.roles?.nombre === 'asesor';
+    if (!esAsesor && !ROLES_ADMINISTRATIVOS.includes(usuario?.roles?.nombre)) {
+      throw new ForbiddenException(
+        'No tienes permiso para registrar contratos',
+      );
+    }
+    if (!usuario.activo) {
+      throw new ForbiddenException('La cuenta del usuario no está activa');
+    }
+    if (esAsesor && dto.asesor_id !== undefined) {
+      throw new BadRequestException(
+        'El asesor_id no se acepta para asesores; se asigna desde la sesión autenticada',
+      );
+    }
+    if (!esAsesor && !dto.asesor_id) {
+      throw new BadRequestException(
+        'asesor_id es obligatorio cuando un administrador registra el contrato',
+      );
+    }
+    const asesorId = esAsesor ? usuario.id : dto.asesor_id!;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const [cliente, servicio, asesor, estado] = await Promise.all([
+        const [cliente, servicio, estado] = await Promise.all([
           tx.clientes.findUnique({
             where: { id: dto.cliente_id },
             select: { id: true },
@@ -132,14 +155,6 @@ export class ContratosService {
           tx.servicios.findUnique({
             where: { id: dto.servicio_id, activo: true },
             select: { id: true },
-          }),
-          tx.usuarios.findUnique({
-            where: { id: dto.asesor_id },
-            select: {
-              id: true,
-              activo: true,
-              roles: { select: { nombre: true } },
-            },
           }),
           tx.estados_contratos.findUnique({
             where: { id: dto.estado_contrato_id },
@@ -154,22 +169,35 @@ export class ContratosService {
             'El servicio indicado no existe o está inactivo',
           );
         }
-        if (!asesor || !asesor.activo || asesor.roles.nombre !== 'asesor') {
-          throw new BadRequestException(
-            'El usuario indicado no existe, está inactivo o no tiene el rol de asesor',
-          );
-        }
         if (!estado) {
           throw new BadRequestException(
             'El estado contractual indicado no existe',
           );
         }
 
+        // El JWT procede de JwtStrategy, que ya consulta rol y cuenta activa.
+        // Para administradores, el asesor indicado se valida aquí contra Prisma.
+        if (!esAsesor) {
+          const asesor = await tx.usuarios.findUnique({
+            where: { id: asesorId },
+            select: {
+              id: true,
+              activo: true,
+              roles: { select: { nombre: true } },
+            },
+          });
+          if (!asesor || !asesor.activo || asesor.roles.nombre !== 'asesor') {
+            throw new BadRequestException(
+              'El usuario indicado no existe, está inactivo o no tiene el rol de asesor',
+            );
+          }
+        }
+
         return tx.contratos.create({
           data: {
             cliente_id: dto.cliente_id,
             servicio_id: dto.servicio_id,
-            asesor_id: dto.asesor_id,
+            asesor_id: asesorId,
             folio: dto.folio.trim(),
             fecha_contrato: dto.fecha_contrato,
             estado_contrato_id: dto.estado_contrato_id,
@@ -189,7 +217,7 @@ export class ContratosService {
     dto: UpdateContratoDto,
     usuario: UsuarioAutenticado,
   ) {
-    this.ensureCanManage(usuario);
+    this.ensureCanUpdate(usuario);
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException(
         'Debe proporcionar observaciones para actualizar',
@@ -197,11 +225,17 @@ export class ContratosService {
     }
 
     try {
-      return await this.prisma.contratos.update({
-        where: { id },
+      const result = await this.prisma.contratos.updateMany({
+        where:
+          usuario.roles.nombre === 'asesor'
+            ? { id, asesor_id: usuario.id }
+            : { id },
         data: { observaciones: dto.observaciones },
-        select: contratoSelect,
       });
+      if (result.count === 0) {
+        throw new NotFoundException('Contrato no encontrado');
+      }
+      return this.findOne(id, usuario);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -217,11 +251,18 @@ export class ContratosService {
     }
   }
 
-  private ensureCanManage(usuario: UsuarioAutenticado): void {
-    if (!ROLES_ADMINISTRATIVOS.includes(usuario?.roles?.nombre)) {
+  private ensureCanUpdate(usuario: UsuarioAutenticado): void {
+    if (
+      !['administrador', 'administrador financiero', 'asesor'].includes(
+        usuario?.roles?.nombre,
+      )
+    ) {
       throw new ForbiddenException(
-        'Solo el administrador y el administrador financiero pueden administrar contratos',
+        'No tienes permiso para actualizar contratos',
       );
+    }
+    if (!usuario.activo) {
+      throw new ForbiddenException('La cuenta del usuario no está activa');
     }
   }
 

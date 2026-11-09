@@ -38,6 +38,7 @@ import { ContratosService } from './contratos.service';
 
 interface UsuarioAutenticado {
   id: string;
+  activo: boolean;
   roles: { nombre: string };
 }
 
@@ -155,11 +156,11 @@ export class ContratosController {
   }
 
   @Post()
-  @Roles('administrador', 'administrador financiero')
+  @Roles('administrador', 'administrador financiero', 'asesor')
   @ApiOperation({
     summary: 'Registrar un contrato',
     description:
-      'Solo administración. Valida cliente, servicio activo, usuario asesor activo y estado existente; cada relación se toma del DTO y se comprueba en el backend.',
+      'Asesores, administradores y administradores financieros pueden registrar contratos. Al asesor se le asigna contratos.asesor_id desde el usuario autenticado; debe omitir asesor_id del cuerpo. Administración debe proporcionar asesor_id de un usuario activo con rol asesor.',
   })
   @ApiCreatedResponse({
     description: 'Contrato creado con sus relaciones de visualización.',
@@ -167,11 +168,11 @@ export class ContratosController {
   })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
   @ApiForbiddenResponse({
-    description: 'Solo los roles administrativos pueden crear contratos.',
+    description: 'El rol no puede crear contratos o la cuenta no está activa.',
   })
   @ApiBadRequestResponse({
     description:
-      'Datos inválidos o alguna referencia no existe/no está activa.',
+      'Datos inválidos, asesor_id enviado por un asesor, o una referencia no existe/no está activa.',
   })
   @ApiConflictResponse({
     description: 'Conflicto con una restricción única definida en la base.',
@@ -184,11 +185,11 @@ export class ContratosController {
   }
 
   @Patch(':id')
-  @Roles('administrador', 'administrador financiero')
+  @Roles('administrador', 'administrador financiero', 'asesor')
   @ApiOperation({
     summary: 'Actualizar observaciones del contrato',
     description:
-      'Solo administración. Esta etapa permite modificar observaciones; no cambia folio, relaciones, fecha, pagos ni estado mientras no se definan las reglas para evitar alterar historia financiera.',
+      'Administración puede actualizar observaciones. El asesor solo puede actualizar contratos cuyo contratos.asesor_id coincide con su usuario autenticado. No cambia folio, relaciones, fecha, pagos ni estado.',
   })
   @ApiParam({ name: 'id', description: 'UUID del contrato.', format: 'uuid' })
   @ApiOkResponse({
@@ -197,7 +198,8 @@ export class ContratosController {
   })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
   @ApiForbiddenResponse({
-    description: 'Solo los roles administrativos pueden actualizar contratos.',
+    description:
+      'El rol no puede actualizar contratos o la cuenta no está activa.',
   })
   @ApiNotFoundResponse({ description: 'Contrato no encontrado.' })
   @ApiBadRequestResponse({
