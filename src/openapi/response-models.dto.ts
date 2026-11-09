@@ -267,3 +267,130 @@ export class ContratosPaginadosRespuestaDto {
   @ApiProperty({ type: PaginacionRespuestaDto })
   pagination: PaginacionRespuestaDto;
 }
+
+export class PagoRelacionadoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ description: 'Etiqueta de la relación.' })
+  nombre: string;
+}
+
+export class EvidenciaPagoResumenRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  nombre_original?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  tipo_archivo?: string | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  tipos_evidencia_pago?: PagoRelacionadoRespuestaDto | null;
+}
+
+export class PagoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  contrato_id: string;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  pago_programado_id?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  forma_pago_id?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  estado_pago_id?: number | null;
+
+  @ApiProperty({ type: String, example: '1250.00' })
+  monto: string;
+
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  fecha_pago?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  registrado_por?: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  fecha_registro: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  observaciones?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  referencia_pago?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  folio_recibo?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  recibido_por?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lugar_recepcion?: string | null;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  contratos: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  formas_pago?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  estados_pago?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  pagos_programados?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  usuarios?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  usuario_receptor?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: [EvidenciaPagoResumenRespuestaDto] })
+  evidencias_pago?: EvidenciaPagoResumenRespuestaDto[];
+}
+
+export class PagoHistorialRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  pago_id: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  estado_anterior_id?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  estado_nuevo_id?: number | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  cambiado_por?: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  fecha_cambio: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  comentario?: string | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  estados_pago_historial_estados_pago_estado_anterior_idToestados_pago?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  estados_pago_historial_estados_pago_estado_nuevo_idToestados_pago?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  usuarios?: Record<string, unknown> | null;
+}
+
+export class PagosPaginadosRespuestaDto {
+  @ApiProperty({ type: [PagoRespuestaDto] })
+  data: PagoRespuestaDto[];
+
+  @ApiProperty({ type: PaginacionRespuestaDto })
+  pagination: PaginacionRespuestaDto;
+}

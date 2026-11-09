@@ -47,6 +47,10 @@ describe('Application authentication (e2e)', () => {
     const catalogDeletePath = findPath('/finanzas/catalogos/{catalogo}/{id}');
     const contractsPath = findPath('/finanzas/contratos');
     const contractDetailPath = findPath('/finanzas/contratos/{id}');
+    const paymentsPath = findPath('/finanzas/pagos');
+    const paymentDetailPath = findPath('/finanzas/pagos/{id}');
+    const paymentHistoryPath = findPath('/finanzas/pagos/{id}/historial');
+    const paymentStatePath = findPath('/finanzas/pagos/{id}/estado');
 
     expect(loginPath).toBeDefined();
     expect(currentUserPath).toBeDefined();
@@ -56,6 +60,10 @@ describe('Application authentication (e2e)', () => {
     expect(catalogDeletePath).toBeDefined();
     expect(contractsPath).toBeDefined();
     expect(contractDetailPath).toBeDefined();
+    expect(paymentsPath).toBeDefined();
+    expect(paymentDetailPath).toBeDefined();
+    expect(paymentHistoryPath).toBeDefined();
+    expect(paymentStatePath).toBeDefined();
     expect(response.body.components.securitySchemes.jwt).toMatchObject({
       type: 'http',
       scheme: 'bearer',
@@ -92,6 +100,21 @@ describe('Application authentication (e2e)', () => {
         'se asignan automáticamente desde el JWT',
       ),
     });
+    expect(
+      response.body.paths[paymentsPath!].post.responses['201'],
+    ).toBeDefined();
+    expect(
+      response.body.paths[paymentDetailPath!].get.responses['200'],
+    ).toBeDefined();
+    expect(
+      response.body.paths[paymentHistoryPath!].get.responses['200'],
+    ).toBeDefined();
+    expect(
+      response.body.paths[paymentStatePath!].patch.responses['403'],
+    ).toBeDefined();
+    expect(
+      response.body.components.schemas.CreatePagoDto.properties.monto,
+    ).toMatchObject({ type: 'string' });
   });
 
   afterEach(async () => {
