@@ -159,6 +159,9 @@ prisma/*.db-journal
 # Prisma generated client
 src/generated/
 
+# Privately stored payment evidence files
+/storage/
+
 # OS
 .DS_Store
 Thumbs.db

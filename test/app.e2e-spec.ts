@@ -51,6 +51,9 @@ describe('Application authentication (e2e)', () => {
     const paymentDetailPath = findPath('/finanzas/pagos/{id}');
     const paymentHistoryPath = findPath('/finanzas/pagos/{id}/historial');
     const paymentStatePath = findPath('/finanzas/pagos/{id}/estado');
+    const evidenceUploadPath = findPath('/finanzas/pagos/{pagoId}/evidencias');
+    const evidenceDetailPath = findPath('/finanzas/evidencias/{evidenciaId}');
+    const evidenceDownloadPath = findPath('/finanzas/evidencias/{evidenciaId}/descargar');
 
     expect(loginPath).toBeDefined();
     expect(currentUserPath).toBeDefined();
@@ -64,6 +67,9 @@ describe('Application authentication (e2e)', () => {
     expect(paymentDetailPath).toBeDefined();
     expect(paymentHistoryPath).toBeDefined();
     expect(paymentStatePath).toBeDefined();
+    expect(evidenceUploadPath).toBeDefined();
+    expect(evidenceDetailPath).toBeDefined();
+    expect(evidenceDownloadPath).toBeDefined();
     expect(response.body.components.securitySchemes.jwt).toMatchObject({
       type: 'http',
       scheme: 'bearer',
@@ -115,6 +121,15 @@ describe('Application authentication (e2e)', () => {
     expect(
       response.body.components.schemas.CreatePagoDto.properties.monto,
     ).toMatchObject({ type: 'string' });
+    expect(response.body.paths[evidenceUploadPath!].post.requestBody.content['multipart/form-data']).toBeDefined();
+    expect(response.body.paths[evidenceDetailPath!].get.responses['200']).toBeDefined();
+    expect(response.body.paths[evidenceDownloadPath!].get.responses['200'].content['application/pdf']).toBeDefined();
+  });
+
+  it('/api/finanzas/evidencias/:id requires authentication', () => {
+    return request(app.getHttpServer())
+      .get('/api/finanzas/evidencias/39987e79-6ff9-40c7-b069-6aeb3d122cd8')
+      .expect(401);
   });
 
   afterEach(async () => {
