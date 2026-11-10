@@ -394,3 +394,52 @@ export class PagosPaginadosRespuestaDto {
   @ApiProperty({ type: PaginacionRespuestaDto })
   pagination: PaginacionRespuestaDto;
 }
+
+export class PagoProgramadoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  contrato_id: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  tipo_cobro_id?: number | null;
+
+  @ApiProperty()
+  numero_pago: number;
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  fecha_esperada?: string | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  fecha_vencimiento?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  monto_esperado?: string | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  periodo?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  estado_id?: number | null;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  contratos: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  tipos_cobro?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
+  estados_pago_programado?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiProperty({ type: [Object] })
+  pagos: Record<string, unknown>[];
+}
+
+export class PagosProgramadosPaginadosRespuestaDto {
+  @ApiProperty({ type: [PagoProgramadoRespuestaDto] })
+  data: PagoProgramadoRespuestaDto[];
+
+  @ApiProperty({ type: PaginacionRespuestaDto })
+  pagination: PaginacionRespuestaDto;
+}
