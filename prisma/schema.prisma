@@ -254,6 +254,9 @@ model pagos {
   fecha_registro         DateTime                 @default(now()) @db.Timestamptz(6)
   observaciones          String?
   referencia_pago        String?                  @db.VarChar(100)
+  folio_recibo           String?                  @db.VarChar(100)
+  recibido_por           String?                  @db.Uuid
+  lugar_recepcion        String?                  @db.VarChar(150)
   comisiones             comisiones[]
   detalle_corte          detalle_corte[]
   evidencias_pago        evidencias_pago[]
@@ -263,6 +266,7 @@ model pagos {
   formas_pago            formas_pago?             @relation(fields: [forma_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_forma")
   pagos_programados      pagos_programados?       @relation(fields: [pago_programado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programado")
   usuarios               usuarios?                @relation(fields: [registrado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_usuario")
+  usuario_receptor       usuarios?                @relation("pagos_recibido_por", fields: [recibido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_recibido_por")
 }
 
 model pagos_programados {
@@ -445,6 +449,7 @@ model usuarios {
   formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]          @relation("formatos_institucionales_creado_porTousuarios")
   historial_estados_pago                                                            historial_estados_pago[]
   pagos                                                                             pagos[]
+  pagos_recibidos                                                                   pagos[]             @relation("pagos_recibido_por")
   prenomina                                                                         prenomina[]
   tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                   @relation("tareas_auxiliar_asignado_porTousuarios")
   tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                   @relation("tareas_auxiliar_auxiliar_idTousuarios")
