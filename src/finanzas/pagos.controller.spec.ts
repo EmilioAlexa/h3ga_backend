@@ -10,6 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import { RolesGuard } from '../roles/guards/roles.guard';
 import { PagosController } from './pagos.controller';
 import { PagosService } from './pagos.service';
+import { ComisionesService } from './comisiones.service';
 
 const secret = 'finanzas-pagos-test-secret-32-chars';
 const ids = {
@@ -340,6 +341,7 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
       controllers: [PagosController],
       providers: [
         PagosService,
+        { provide: ComisionesService, useValue: { generateForValidatedPayment: jest.fn() } },
         JwtAuthGuard,
         JwtStrategy,
         RolesGuard,

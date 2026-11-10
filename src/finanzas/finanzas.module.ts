@@ -14,6 +14,8 @@ import { EvidenciasService } from './evidencias/evidencias.service';
 import { StorageModule } from './storage/storage.module';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
+import { ComisionesController } from './comisiones.controller';
+import { ComisionesService } from './comisiones.service';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { MulterModule } from '@nestjs/platform-express';
     PagosController,
     PagosProgramadosController,
     EvidenciasController,
+    ComisionesController,
   ],
   providers: [
     CatalogosService,
@@ -44,6 +47,7 @@ import { MulterModule } from '@nestjs/platform-express';
     PagosService,
     PagosProgramadosService,
     EvidenciasService,
+    ComisionesService,
     RolesGuard,
   ],
 })
