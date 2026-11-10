@@ -13,6 +13,7 @@ import {
 } from './dto/change-estado-pago.dto';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { QueryPagosDto } from './dto/query-pagos.dto';
+import { ComisionesService } from './comisiones.service';
 
 type UsuarioAutenticado = {
   id: string;
@@ -123,7 +124,10 @@ type FormaNormalizada = 'efectivo' | 'bancaria' | 'cheque';
 
 @Injectable()
 export class PagosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly comisionesService: ComisionesService,
+  ) {}
 
   async findAll(query: QueryPagosDto, usuario: UsuarioAutenticado) {
     this.ensureCanRead(usuario);
@@ -387,6 +391,14 @@ export class PagosService {
             comentario: dto.comentario?.trim() || null,
           },
         });
+
+        if (siguienteNombre === ESTADO_VALIDADO) {
+          await this.comisionesService.generateForValidatedPayment(
+            tx,
+            pago.id,
+            usuario.id,
+          );
+        }
 
         return tx.pagos.findUnique({
           where: { id: pago.id },
