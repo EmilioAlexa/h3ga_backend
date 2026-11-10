@@ -208,6 +208,7 @@ model evidencias_pago {
   subido_por           String?               @db.Uuid
   fecha_carga          DateTime              @default(now()) @db.Timestamptz(6)
   hash_archivo         String?               @db.VarChar(128)
+  tamano_bytes         Int?                  @db.Integer
   pagos                pagos                 @relation(fields: [pago_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_evidencias_pago")
   tipos_evidencia_pago tipos_evidencia_pago? @relation(fields: [tipo_evidencia_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_tipo")
   usuarios             usuarios?             @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_usuario")
