@@ -7,10 +7,23 @@ import { ContratosController } from './contratos.controller';
 import { ContratosService } from './contratos.service';
 import { PagosController } from './pagos.controller';
 import { PagosService } from './pagos.service';
+import { PagosProgramadosController } from './pagos-programados.controller';
+import { PagosProgramadosService } from './pagos-programados.service';
 
 @Module({
   imports: [AuthModule],
-  controllers: [CatalogosController, ContratosController, PagosController],
-  providers: [CatalogosService, ContratosService, PagosService, RolesGuard],
+  controllers: [
+    CatalogosController,
+    ContratosController,
+    PagosController,
+    PagosProgramadosController,
+  ],
+  providers: [
+    CatalogosService,
+    ContratosService,
+    PagosService,
+    PagosProgramadosService,
+    RolesGuard,
+  ],
 })
 export class FinanzasModule {}
