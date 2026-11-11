@@ -18,6 +18,8 @@ import { ComisionesController } from './comisiones.controller';
 import { ComisionesService } from './comisiones.service';
 import { CortesFinancierosController } from './cortes-financieros.controller';
 import { CortesFinancierosService } from './cortes-financieros.service';
+import { PrenominasController } from './prenominas.controller';
+import { PrenominasService } from './prenominas.service';
 
 @Module({
   imports: [
@@ -43,6 +45,7 @@ import { CortesFinancierosService } from './cortes-financieros.service';
     EvidenciasController,
     ComisionesController,
     CortesFinancierosController,
+    PrenominasController,
   ],
   providers: [
     CatalogosService,
@@ -52,6 +55,7 @@ import { CortesFinancierosService } from './cortes-financieros.service';
     EvidenciasService,
     ComisionesService,
     CortesFinancierosService,
+    PrenominasService,
     RolesGuard,
   ],
 })
