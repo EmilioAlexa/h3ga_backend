@@ -16,6 +16,12 @@ import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { ComisionesController } from './comisiones.controller';
 import { ComisionesService } from './comisiones.service';
+import { CortesFinancierosController } from './cortes-financieros.controller';
+import { CortesFinancierosService } from './cortes-financieros.service';
+import { PrenominasController } from './prenominas.controller';
+import { PrenominasService } from './prenominas.service';
+import { ReportesFinancierosController } from './reportes-financieros.controller';
+import { ReportesFinancierosService } from './reportes-financieros.service';
 
 @Module({
   imports: [
@@ -40,6 +46,9 @@ import { ComisionesService } from './comisiones.service';
     PagosProgramadosController,
     EvidenciasController,
     ComisionesController,
+    CortesFinancierosController,
+    PrenominasController,
+    ReportesFinancierosController,
   ],
   providers: [
     CatalogosService,
@@ -48,6 +57,9 @@ import { ComisionesService } from './comisiones.service';
     PagosProgramadosService,
     EvidenciasService,
     ComisionesService,
+    CortesFinancierosService,
+    PrenominasService,
+    ReportesFinancierosService,
     RolesGuard,
   ],
 })

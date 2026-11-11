@@ -64,29 +64,29 @@ model clientes {
 }
 
 model comisiones {
-  id                             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pago_id                        String                       @db.Uuid
-  monto_base                     Decimal                      @db.Decimal(12, 2)
-  monto_comision                 Decimal                      @db.Decimal(12, 2)
-  estado_id                      Int                          @db.SmallInt
-  fecha_calculo                  DateTime                     @default(now()) @db.Timestamptz(6)
+  id                             String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pago_id                        String                         @db.Uuid
+  monto_base                     Decimal                        @db.Decimal(12, 2)
+  monto_comision                 Decimal                        @db.Decimal(12, 2)
+  estado_id                      Int                            @db.SmallInt
+  fecha_calculo                  DateTime                       @default(now()) @db.Timestamptz(6)
   observaciones                  String?
-  beneficiario_id                String?                      @db.Uuid
-  concepto_id                    Int                          @db.SmallInt
-  contrato_dispersion_detalle_id String?                      @db.Uuid
-  detalle_prenomina_id           String?                      @db.Uuid
-  receptor_dispersion_id         String?                      @db.Uuid
-  receptor_nombre_snapshot       String?                      @db.VarChar(150)
+  beneficiario_id                String?                        @db.Uuid
+  concepto_id                    Int                            @db.SmallInt
+  contrato_dispersion_detalle_id String?                        @db.Uuid
+  detalle_prenomina_id           String?                        @db.Uuid
+  receptor_dispersion_id         String?                        @db.Uuid
+  receptor_nombre_snapshot       String?                        @db.VarChar(150)
   tipo_calculo                   tipo_calculo_dispersion
-  valor_aplicado                 Decimal                      @db.Decimal(12, 2)
+  valor_aplicado                 Decimal                        @db.Decimal(12, 2)
   historial_estados_comisiones   historial_estados_comisiones[]
-  conceptos_dispersion           conceptos_dispersion         @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  contrato_dispersion_detalle    contrato_dispersion_detalle? @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
-  detalle_prenomina              detalle_prenomina?           @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
-  receptores_dispersion           receptores_dispersion?        @relation(fields: [receptor_dispersion_id], references: [id], onUpdate: NoAction, map: "fk_comisiones_receptor_dispersion")
-  usuarios                       usuarios?                    @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_asesor")
-  estados_comisiones             estados_comisiones           @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_estado")
-  pagos                          pagos                        @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_pago")
+  conceptos_dispersion           conceptos_dispersion           @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contrato_dispersion_detalle    contrato_dispersion_detalle?   @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
+  detalle_prenomina              detalle_prenomina?             @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
+  receptores_dispersion          receptores_dispersion?         @relation(fields: [receptor_dispersion_id], references: [id], onUpdate: NoAction, map: "fk_comisiones_receptor_dispersion")
+  usuarios                       usuarios?                      @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_asesor")
+  estados_comisiones             estados_comisiones             @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_estado")
+  pagos                          pagos                          @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_pago")
 
   @@unique([pago_id, concepto_id], map: "uq_comisiones_pago_concepto")
   @@index([beneficiario_id], map: "ix_comisiones_beneficiario")
@@ -96,33 +96,33 @@ model comisiones {
 }
 
 model contratos {
-  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cliente_id                  String                        @db.Uuid
-  servicio_id                 Int                           @db.SmallInt
-  asesor_id                   String                        @db.Uuid
-  folio                       String                        @db.VarChar(50)
-  fecha_contrato              DateTime                      @db.Date
-  estado_contrato_id          Int                           @db.SmallInt
-  cantidad_pagos              Int?                          @db.SmallInt
-  observaciones               String?
-  creado_en                   DateTime                      @default(now()) @db.Timestamptz(6)
-  contrato_dispersion_detalle contrato_dispersion_detalle[]
+  id                                 String                               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                         String                               @db.Uuid
+  servicio_id                        Int                                  @db.SmallInt
+  asesor_id                          String                               @db.Uuid
+  folio                              String                               @db.VarChar(50)
+  fecha_contrato                     DateTime                             @db.Date
+  estado_contrato_id                 Int                                  @db.SmallInt
+  cantidad_pagos                     Int?                                 @db.SmallInt
+  observaciones                      String?
+  creado_en                          DateTime                             @default(now()) @db.Timestamptz(6)
+  contrato_dispersion_detalle        contrato_dispersion_detalle[]
   historial_configuracion_dispersion historial_configuracion_dispersion[]
-  usuarios                    usuarios                      @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_asesor")
-  clientes                    clientes                      @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_cliente")
-  estados_contratos           estados_contratos             @relation(fields: [estado_contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_estado")
-  servicios                   servicios                     @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_servicio")
-  pagos                       pagos[]
-  pagos_programados           pagos_programados[]
-  seguimiento_apd             seguimiento_apd?
-  seguimiento_m10             seguimiento_m10?
-  seguimiento_m40             seguimiento_m40?
-  seguimiento_m40_retroactiva seguimiento_m40_retroactiva?
+  usuarios                           usuarios                             @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_asesor")
+  clientes                           clientes                             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_cliente")
+  estados_contratos                  estados_contratos                    @relation(fields: [estado_contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_estado")
+  servicios                          servicios                            @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contratos_servicio")
+  pagos                              pagos[]
+  pagos_programados                  pagos_programados[]
+  seguimiento_apd                    seguimiento_apd?
+  seguimiento_m10                    seguimiento_m10?
+  seguimiento_m40                    seguimiento_m40?
+  seguimiento_m40_retroactiva        seguimiento_m40_retroactiva?
 }
 
 model cortes_financieros {
   id                                                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  numero_corte                                      Int
+  numero_corte                                      Int             @unique(map: "uq_cortes_numero_corte") @default(autoincrement())
   fecha_inicio                                      DateTime        @db.Timestamptz(6)
   fecha_fin                                         DateTime        @db.Timestamptz(6)
   estado_id                                         Int             @db.SmallInt
@@ -135,6 +135,14 @@ model cortes_financieros {
   estados_corte                                     estados_corte   @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cortes_estado")
   detalle_corte                                     detalle_corte[]
   prenomina                                         prenomina[]
+
+  // Reservas liberables al cancelar; el corte y sus detalles permanecen como historial.
+  cortes_periodos_reservados cortes_periodos_reservados?
+  cortes_pagos_reservados    cortes_pagos_reservados[]
+  historial_estados_corte    historial_estados_corte[]
+
+  @@index([estado_id, fecha_inicio], map: "ix_cortes_estado_fecha")
+  @@index([fecha_inicio, fecha_fin], map: "ix_cortes_periodo")
 }
 
 model detalle_corte {
@@ -142,44 +150,52 @@ model detalle_corte {
   corte_id           String             @db.Uuid
   pago_id            String             @db.Uuid
   monto              Decimal            @db.Decimal(12, 2)
-  cortes_financieros cortes_financieros @relation(fields: [corte_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_corte")
+  cortes_financieros cortes_financieros @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_corte")
   pagos              pagos              @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_corte_pago")
 
   @@unique([corte_id, pago_id], map: "uq_detalle_corte_pago")
 }
 
 model detalle_prenomina {
-  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  prenomina_id      String       @db.Uuid
-  monto_referencial Decimal?     @db.Decimal(12, 2)
-  observaciones     String?
-  beneficiario_id   String       @db.Uuid
-  comisiones        comisiones[]
-  prenomina         prenomina    @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
-  usuarios          usuarios     @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prenomina_id             String                 @db.Uuid
+  monto_referencial        Decimal?               @db.Decimal(12, 2)
+  observaciones            String?
+  beneficiario_id          String?                @db.Uuid
+  concepto_id              Int?                   @db.SmallInt
+  receptor_dispersion_id   String?                @db.Uuid
+  receptor_nombre_snapshot String?                @db.VarChar(150)
+  comisiones               comisiones[]
+  prenomina                prenomina              @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
+  usuarios                 usuarios?              @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
+  conceptos_dispersion     conceptos_dispersion?  @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_concepto")
+  receptores_dispersion    receptores_dispersion? @relation(fields: [receptor_dispersion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_receptor")
+
+  @@index([prenomina_id, beneficiario_id], map: "ix_detalle_prenomina_beneficiario")
+  @@index([prenomina_id, receptor_dispersion_id], map: "ix_detalle_prenomina_receptor")
 }
 
 model estados_comisiones {
-  id          Int          @id @default(autoincrement()) @db.SmallInt
-  nombre      String       @unique @db.VarChar(30)
-  descripcion String?
-  comisiones  comisiones[]
+  id                                                                                               Int                            @id @default(autoincrement()) @db.SmallInt
+  nombre                                                                                           String                         @unique @db.VarChar(30)
+  descripcion                                                                                      String?
+  comisiones                                                                                       comisiones[]
   historial_estados_comisiones_historial_estados_comisiones_estado_anterior_idToestados_comisiones historial_estados_comisiones[] @relation("historial_comision_estado_anterior")
-  historial_estados_comisiones_historial_estados_comisiones_estado_nuevo_idToestados_comisiones historial_estados_comisiones[] @relation("historial_comision_estado_nuevo")
+  historial_estados_comisiones_historial_estados_comisiones_estado_nuevo_idToestados_comisiones    historial_estados_comisiones[] @relation("historial_comision_estado_nuevo")
 }
 
 model historial_estados_comisiones {
-  id                                                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  comision_id                                       String            @db.Uuid
-  estado_anterior_id                               Int?              @db.SmallInt
-  estado_nuevo_id                                   Int               @db.SmallInt
-  cambiado_por                                      String            @db.Uuid
-  fecha_cambio                                      DateTime          @default(now()) @db.Timestamptz(6)
-  comentario                                        String?
-  comisiones                                        comisiones        @relation(fields: [comision_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_comision")
+  id                                                                                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  comision_id                                                                            String              @db.Uuid
+  estado_anterior_id                                                                     Int?                @db.SmallInt
+  estado_nuevo_id                                                                        Int                 @db.SmallInt
+  cambiado_por                                                                           String              @db.Uuid
+  fecha_cambio                                                                           DateTime            @default(now()) @db.Timestamptz(6)
+  comentario                                                                             String?
+  comisiones                                                                             comisiones          @relation(fields: [comision_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_comision")
   estados_comisiones_historial_estados_comisiones_estado_anterior_idToestados_comisiones estados_comisiones? @relation("historial_comision_estado_anterior", fields: [estado_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  estados_comisiones_historial_estados_comisiones_estado_nuevo_idToestados_comisiones estados_comisiones @relation("historial_comision_estado_nuevo", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usuarios                                          usuarios          @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_comision_usuario")
+  estados_comisiones_historial_estados_comisiones_estado_nuevo_idToestados_comisiones    estados_comisiones  @relation("historial_comision_estado_nuevo", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios                                                                               usuarios            @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_comision_usuario")
 
   @@index([comision_id, fecha_cambio], map: "ix_historial_estado_comision_fecha")
 }
@@ -193,10 +209,43 @@ model estados_contratos {
 }
 
 model estados_corte {
-  id                 Int                  @id @default(autoincrement()) @db.SmallInt
-  nombre             String               @unique @db.VarChar(20)
-  descripcion        String?
-  cortes_financieros cortes_financieros[]
+  id                               Int                       @id @default(autoincrement()) @db.SmallInt
+  nombre                           String                    @unique @db.VarChar(20)
+  descripcion                      String?
+  cortes_financieros               cortes_financieros[]
+  historial_estados_corte_anterior historial_estados_corte[] @relation("historial_corte_estado_anterior")
+  historial_estados_corte_nuevo    historial_estados_corte[] @relation("historial_corte_estado_nuevo")
+}
+
+model historial_estados_corte {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corte_id           String             @db.Uuid
+  estado_anterior_id Int?               @db.SmallInt
+  estado_nuevo_id    Int                @db.SmallInt
+  cambiado_por       String             @db.Uuid
+  fecha_cambio       DateTime           @default(now()) @db.Timestamptz(6)
+  comentario         String?
+  cortes_financieros cortes_financieros @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_corte")
+  estado_anterior    estados_corte?     @relation("historial_corte_estado_anterior", fields: [estado_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_corte_anterior")
+  estado_nuevo       estados_corte      @relation("historial_corte_estado_nuevo", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_corte_nuevo")
+  usuarios           usuarios           @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_corte_usuario")
+
+  @@index([corte_id, fecha_cambio], map: "ix_historial_estado_corte_fecha")
+}
+
+model cortes_periodos_reservados {
+  periodo_inicio     DateTime           @id @db.Date
+  corte_id           String             @unique(map: "uq_cortes_periodo_reservado_corte") @db.Uuid
+  cortes_financieros cortes_financieros @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cortes_periodo_reservado")
+}
+
+model cortes_pagos_reservados {
+  pago_id            String             @id @db.Uuid
+  corte_id           String             @db.Uuid
+  pagos              pagos              @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cortes_pago_reservado_pago")
+  cortes_financieros cortes_financieros @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cortes_pago_reservado_corte")
+
+  @@index([corte_id], map: "ix_cortes_pagos_reservados_corte")
 }
 
 model estados_pago {
@@ -268,30 +317,31 @@ model modalidades_apd {
 }
 
 model pagos {
-  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contrato_id            String                   @db.Uuid
-  pago_programado_id     String?                  @db.Uuid
-  forma_pago_id          Int?                     @db.SmallInt
-  estado_pago_id         Int?                     @db.SmallInt
-  monto                  Decimal                  @db.Decimal(12, 2)
-  fecha_pago             DateTime?                @db.Timestamptz(6)
-  registrado_por         String?                  @db.Uuid
-  fecha_registro         DateTime                 @default(now()) @db.Timestamptz(6)
-  observaciones          String?
-  referencia_pago        String?                  @db.VarChar(100)
-  folio_recibo           String?                  @db.VarChar(100)
-  recibido_por           String?                  @db.Uuid
-  lugar_recepcion        String?                  @db.VarChar(150)
-  comisiones             comisiones[]
-  detalle_corte          detalle_corte[]
-  evidencias_pago        evidencias_pago[]
-  historial_estados_pago historial_estados_pago[]
-  contratos              contratos                @relation(fields: [contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_contrato")
-  estados_pago           estados_pago?            @relation(fields: [estado_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_estado")
-  formas_pago            formas_pago?             @relation(fields: [forma_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_forma")
-  pagos_programados      pagos_programados?       @relation(fields: [pago_programado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programado")
-  usuarios               usuarios?                @relation(fields: [registrado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_usuario")
-  usuario_receptor       usuarios?                @relation("pagos_recibido_por", fields: [recibido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_recibido_por")
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id             String                   @db.Uuid
+  pago_programado_id      String?                  @db.Uuid
+  forma_pago_id           Int?                     @db.SmallInt
+  estado_pago_id          Int?                     @db.SmallInt
+  monto                   Decimal                  @db.Decimal(12, 2)
+  fecha_pago              DateTime?                @db.Timestamptz(6)
+  registrado_por          String?                  @db.Uuid
+  fecha_registro          DateTime                 @default(now()) @db.Timestamptz(6)
+  observaciones           String?
+  referencia_pago         String?                  @db.VarChar(100)
+  folio_recibo            String?                  @db.VarChar(100)
+  recibido_por            String?                  @db.Uuid
+  lugar_recepcion         String?                  @db.VarChar(150)
+  comisiones              comisiones[]
+  detalle_corte           detalle_corte[]
+  evidencias_pago         evidencias_pago[]
+  historial_estados_pago  historial_estados_pago[]
+  cortes_pagos_reservados cortes_pagos_reservados?
+  contratos               contratos                @relation(fields: [contrato_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_contrato")
+  estados_pago            estados_pago?            @relation(fields: [estado_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_estado")
+  formas_pago             formas_pago?             @relation(fields: [forma_pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_forma")
+  pagos_programados       pagos_programados?       @relation(fields: [pago_programado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programado")
+  usuarios                usuarios?                @relation(fields: [registrado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_usuario")
+  usuario_receptor        usuarios?                @relation("pagos_recibido_por", fields: [recibido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_recibido_por")
 }
 
 model pagos_programados {
@@ -322,6 +372,8 @@ model prenomina {
   cortes_financieros cortes_financieros  @relation(fields: [corte_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prenomina_corte")
   estados_prenomina  estados_prenomina   @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prenomina_estado")
   usuarios           usuarios            @relation(fields: [creado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prenomina_usuario")
+
+  @@unique([corte_id], map: "uq_prenomina_corte")
 }
 
 model proveedores {
@@ -443,24 +495,24 @@ model tipos_venta {
 }
 
 model usuarios {
-  id                                                                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rol_id                                                                            Int                                 @db.SmallInt
+  id                                                                                String                               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rol_id                                                                            Int                                  @db.SmallInt
   nombre                                                                            String
   apellido_paterno                                                                  String
   apellido_materno                                                                  String?
-  correo_electronico                                                                String                              @unique
-  activo                                                                            Boolean                             @default(true)
-  fecha_creacion                                                                    DateTime                            @default(now()) @db.Timestamptz(6)
+  correo_electronico                                                                String                               @unique
+  activo                                                                            Boolean                              @default(true)
+  fecha_creacion                                                                    DateTime                             @default(now()) @db.Timestamptz(6)
   password_hash                                                                     String?
   avisos                                                                            avisos[]
   clientes                                                                          clientes[]
   comisiones                                                                        comisiones[]
   configuracion_comisiones_obsoleta                                                 configuracion_comisiones_obsoleta[]
-  contrato_dispersion_detalle_contrato_dispersion_detalle_beneficiario_idTousuarios contrato_dispersion_detalle[]       @relation("contrato_dispersion_detalle_beneficiario_idTousuarios")
-  contrato_dispersion_detalle_contrato_dispersion_detalle_creado_porTousuarios      contrato_dispersion_detalle[]       @relation("contrato_dispersion_detalle_creado_porTousuarios")
+  contrato_dispersion_detalle_contrato_dispersion_detalle_beneficiario_idTousuarios contrato_dispersion_detalle[]        @relation("contrato_dispersion_detalle_beneficiario_idTousuarios")
+  contrato_dispersion_detalle_contrato_dispersion_detalle_creado_porTousuarios      contrato_dispersion_detalle[]        @relation("contrato_dispersion_detalle_creado_porTousuarios")
   contratos                                                                         contratos[]
-  cortes_financieros_cortes_financieros_cerrado_porTousuarios                       cortes_financieros[]                @relation("cortes_financieros_cerrado_porTousuarios")
-  cortes_financieros_cortes_financieros_creado_porTousuarios                        cortes_financieros[]                @relation("cortes_financieros_creado_porTousuarios")
+  cortes_financieros_cortes_financieros_cerrado_porTousuarios                       cortes_financieros[]                 @relation("cortes_financieros_cerrado_porTousuarios")
+  cortes_financieros_cortes_financieros_creado_porTousuarios                        cortes_financieros[]                 @relation("cortes_financieros_creado_porTousuarios")
   credenciales_correo_cliente                                                       credenciales_correo_cliente[]
   detalle_prenomina                                                                 detalle_prenomina[]
   diagnostico_especializado                                                         diagnostico_especializado[]
@@ -470,22 +522,23 @@ model usuarios {
   etapas_tramite_historial                                                          etapas_tramite_historial[]
   eventos_agenda                                                                    eventos_agenda[]
   evidencias_pago                                                                   evidencias_pago[]
-  formatos_institucionales_formatos_institucionales_actualizado_porTousuarios       formatos_institucionales[]          @relation("formatos_institucionales_actualizado_porTousuarios")
-  formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]          @relation("formatos_institucionales_creado_porTousuarios")
+  formatos_institucionales_formatos_institucionales_actualizado_porTousuarios       formatos_institucionales[]           @relation("formatos_institucionales_actualizado_porTousuarios")
+  formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]           @relation("formatos_institucionales_creado_porTousuarios")
   historial_estados_pago                                                            historial_estados_pago[]
   pagos                                                                             pagos[]
-  pagos_recibidos                                                                   pagos[]             @relation("pagos_recibido_por")
+  pagos_recibidos                                                                   pagos[]                              @relation("pagos_recibido_por")
   prenomina                                                                         prenomina[]
-  tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                   @relation("tareas_auxiliar_asignado_porTousuarios")
-  tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                   @relation("tareas_auxiliar_auxiliar_idTousuarios")
-  tareas_auxiliar_tareas_auxiliar_validado_porTousuarios                            tareas_auxiliar[]                   @relation("tareas_auxiliar_validado_porTousuarios")
-  roles                                                                             roles                               @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
-  receptores_dispersion_receptor_usuario                                             receptores_dispersion[]              @relation("receptor_dispersion_usuario")
-  receptores_dispersion_receptor_creador                                              receptores_dispersion[]              @relation("receptor_dispersion_creador")
-  historial_configuracion_dispersion                                                  historial_configuracion_dispersion[]
-  historial_estados_comisiones                                                        historial_estados_comisiones[]
-  versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]               @relation("versiones_documento_revisor_idTousuarios")
-  versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]               @relation("versiones_documento_subido_porTousuarios")
+  tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                    @relation("tareas_auxiliar_asignado_porTousuarios")
+  tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                    @relation("tareas_auxiliar_auxiliar_idTousuarios")
+  tareas_auxiliar_tareas_auxiliar_validado_porTousuarios                            tareas_auxiliar[]                    @relation("tareas_auxiliar_validado_porTousuarios")
+  roles                                                                             roles                                @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
+  receptores_dispersion_receptor_usuario                                            receptores_dispersion[]              @relation("receptor_dispersion_usuario")
+  receptores_dispersion_receptor_creador                                            receptores_dispersion[]              @relation("receptor_dispersion_creador")
+  historial_configuracion_dispersion                                                historial_configuracion_dispersion[]
+  historial_estados_comisiones                                                      historial_estados_comisiones[]
+  historial_estados_corte                                                           historial_estados_corte[]
+  versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                @relation("versiones_documento_revisor_idTousuarios")
+  versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                @relation("versiones_documento_subido_porTousuarios")
 }
 
 model afore {
@@ -1079,22 +1132,24 @@ model conceptos_dispersion {
   contrato_dispersion_detalle contrato_dispersion_detalle[]
   esquemas_dispersion_detalle esquemas_dispersion_detalle[]
   receptores_dispersion       receptores_dispersion[]
+  detalle_prenomina           detalle_prenomina[]
 }
 
 model receptores_dispersion {
-  id                                                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  concepto_id                                        Int                          @db.SmallInt
-  usuario_id                                         String?                      @db.Uuid
-  nombre_externo                                     String?                      @db.VarChar(150)
-  activo                                             Boolean                      @default(true)
-  creado_por                                        String?                      @db.Uuid
-  creado_en                                          DateTime                     @default(now()) @db.Timestamptz(6)
-  actualizado_en                                     DateTime                     @default(now()) @db.Timestamptz(6)
-  comisiones                                         comisiones[]
-  contrato_dispersion_detalle                        contrato_dispersion_detalle[]
-  conceptos_dispersion                               conceptos_dispersion          @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_concepto")
-  usuarios_receptor                                  usuarios?                    @relation("receptor_dispersion_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_usuario")
-  usuarios_creador                                   usuarios?                    @relation("receptor_dispersion_creador", fields: [creado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_creador")
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  concepto_id                 Int                           @db.SmallInt
+  usuario_id                  String?                       @db.Uuid
+  nombre_externo              String?                       @db.VarChar(150)
+  activo                      Boolean                       @default(true)
+  creado_por                  String?                       @db.Uuid
+  creado_en                   DateTime                      @default(now()) @db.Timestamptz(6)
+  actualizado_en              DateTime                      @default(now()) @db.Timestamptz(6)
+  comisiones                  comisiones[]
+  detalle_prenomina           detalle_prenomina[]
+  contrato_dispersion_detalle contrato_dispersion_detalle[]
+  conceptos_dispersion        conceptos_dispersion          @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_concepto")
+  usuarios_receptor           usuarios?                     @relation("receptor_dispersion_usuario", fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_usuario")
+  usuarios_creador            usuarios?                     @relation("receptor_dispersion_creador", fields: [creado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_receptores_dispersion_creador")
 
   @@unique([concepto_id, usuario_id], map: "uq_receptor_dispersion_concepto_usuario")
   @@unique([concepto_id, nombre_externo], map: "uq_receptor_dispersion_concepto_externo")
@@ -1138,7 +1193,7 @@ model contrato_dispersion_detalle {
   base_calculo                                                   base_calculo_dispersion @default(monto_bruto)
   orden                                                          Int                     @default(0) @db.SmallInt
   esquema_origen_id                                              Int?                    @db.SmallInt
-  receptor_dispersion_id                                          String?                 @db.Uuid
+  receptor_dispersion_id                                         String?                 @db.Uuid
   activo                                                         Boolean                 @default(true)
   creado_por                                                     String?                 @db.Uuid
   creado_en                                                      DateTime                @default(now()) @db.Timestamptz(6)
