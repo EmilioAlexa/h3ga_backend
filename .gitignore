@@ -173,3 +173,6 @@ diagramsProyect/
 
 #postman
 postman/
+
+#env.example
+.env.example
