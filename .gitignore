@@ -167,3 +167,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+#diagramsProyect
+diagramsProyect/
