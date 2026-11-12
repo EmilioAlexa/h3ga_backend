@@ -172,7 +172,7 @@ Thumbs.db
 diagramsProyect/
 
 #postman
-postman/
+/postman/
 
 #env.example
 .env.example
