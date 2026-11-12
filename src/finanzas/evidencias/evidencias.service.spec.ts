@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
-import { StorageService } from '../storage/storage.service';
+import { StorageService } from './storage/storage.service';
 import { EvidenciasService } from './evidencias.service';
 
 const ids = {

@@ -1,27 +1,27 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RolesGuard } from '../roles/guards/roles.guard';
-import { CatalogosController } from './catalogos.controller';
-import { CatalogosService } from './catalogos.service';
-import { ContratosController } from './contratos.controller';
-import { ContratosService } from './contratos.service';
-import { PagosController } from './pagos.controller';
-import { PagosService } from './pagos.service';
-import { PagosProgramadosController } from './pagos-programados.controller';
-import { PagosProgramadosService } from './pagos-programados.service';
+import { CatalogosController } from './catalogos/catalogos.controller';
+import { CatalogosService } from './catalogos/catalogos.service';
+import { ContratosController } from './contratos/contratos.controller';
+import { ContratosService } from './contratos/contratos.service';
+import { PagosController } from './pagos/pagos.controller';
+import { PagosService } from './pagos/pagos.service';
+import { PagosProgramadosController } from './pagos-programados/pagos-programados.controller';
+import { PagosProgramadosService } from './pagos-programados/pagos-programados.service';
 import { EvidenciasController } from './evidencias/evidencias.controller';
 import { EvidenciasService } from './evidencias/evidencias.service';
-import { StorageModule } from './storage/storage.module';
+import { StorageModule } from './evidencias/storage/storage.module';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
-import { ComisionesController } from './comisiones.controller';
-import { ComisionesService } from './comisiones.service';
-import { CortesFinancierosController } from './cortes-financieros.controller';
-import { CortesFinancierosService } from './cortes-financieros.service';
-import { PrenominasController } from './prenominas.controller';
-import { PrenominasService } from './prenominas.service';
-import { ReportesFinancierosController } from './reportes-financieros.controller';
-import { ReportesFinancierosService } from './reportes-financieros.service';
+import { ComisionesController } from './comisiones/comisiones.controller';
+import { ComisionesService } from './comisiones/comisiones.service';
+import { CortesFinancierosController } from './cortes-financieros/cortes-financieros.controller';
+import { CortesFinancierosService } from './cortes-financieros/cortes-financieros.service';
+import { PrenominasController } from './prenomina/prenomina.controller';
+import { PrenominasService } from './prenomina/prenomina.service';
+import { ReportesFinancierosController } from './reportes/reportes.controller';
+import { ReportesFinancierosService } from './reportes/reportes.service';
 
 @Module({
   imports: [

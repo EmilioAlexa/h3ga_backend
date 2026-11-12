@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { StorageService, StoredObject } from '../storage/storage.service';
+import { StorageService, StoredObject } from './storage/storage.service';
 import {
   UploadedEvidenceFile,
   validateEvidenceFile,
