@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MailService } from './mail.service';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -35,6 +36,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [
     AuthService,
     JwtStrategy,
+    MailService,
   ],
 
   exports: [
