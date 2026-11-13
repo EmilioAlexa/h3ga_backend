@@ -539,6 +539,7 @@ model usuarios {
   historial_estados_corte                                                           historial_estados_corte[]
   versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                @relation("versiones_documento_revisor_idTousuarios")
   versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                @relation("versiones_documento_subido_porTousuarios")
+  password_reset_codes password_reset_codes[]
 }
 
 model afore {
@@ -1524,4 +1525,19 @@ enum tipo_formato {
   pdf
   word
   enlace
+}
+
+
+model password_reset_codes {
+  id             String   @id @default(uuid()) @db.Uuid
+  usuario_id     String   @db.Uuid
+  codigo_hash    String
+  expira_en      DateTime @db.Timestamptz(6)
+  intentos       Int      @default(0)
+  usado          Boolean  @default(false)
+  fecha_creacion DateTime @default(now()) @db.Timestamptz(6)
+
+  usuario usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([usuario_id])
 }
