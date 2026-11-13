@@ -17,6 +17,10 @@ import {
   UsuarioActualRespuestaDto,
 } from '../openapi/response-models.dto';
 
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+
 @Controller('auth')
 @ApiTags('Autenticación')
 export class AuthController {
@@ -58,25 +62,25 @@ export class AuthController {
     return usuario;
   }
 
-  @Post('forgot-password')
-  @ApiOperation({ summary: 'Solicitar recuperación de contraseña' })
-  @ApiOkResponse({ description: 'Solicitud de recuperación procesada' })
-  async forgotPassword(@Body('correo_electronico') correo_electronico: string) {
-    return this.authService.forgotPassword(correo_electronico);
-  }
+@Post('forgot-password')
+@UseGuards(ThrottlerGuard)
+@ApiOperation({ summary: 'Solicitar recuperación de contraseña' })
+@ApiOkResponse({ description: 'Solicitud de recuperación procesada' })
+@Throttle({ default: { limit: 3, ttl: 600000 } })
+async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  return this.authService.forgotPassword(dto.correo_electronico);
+}
 
-  @Post('reset-password')
-  @ApiOperation({ summary: 'Restablecer contraseña' })
-  @ApiOkResponse({ description: 'Contraseña actualizada correctamente' })
-  async resetPassword(
-    @Body('correo_electronico') correo_electronico: string,
-    @Body('codigo') codigo: string,
-    @Body('nueva_contrasena') nueva_contrasena: string,
-  ) {
-    return this.authService.resetPassword(
-      correo_electronico,
-      codigo,
-      nueva_contrasena,
-    );
-  }
+@Post('reset-password')
+@UseGuards(ThrottlerGuard)
+@ApiOperation({ summary: 'Restablecer contraseña' })
+@Throttle({ default: { limit: 5, ttl: 600000 } })
+@ApiOkResponse({ description: 'Contraseña actualizada correctamente' })
+async resetPassword(@Body() dto: ResetPasswordDto) {
+  return this.authService.resetPassword(
+    dto.correo_electronico,
+    dto.codigo,
+    dto.nueva_contrasena,
+  );
+}
 }

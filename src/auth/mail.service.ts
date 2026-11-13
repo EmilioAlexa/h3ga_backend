@@ -19,6 +19,9 @@ export class MailService {
     });
 
     try {
+      // PASO 1: Verificar conexión con Gmail
+      await transporter.verify();
+      console.log('✅ Conexión SMTP con Gmail exitosa');
       await transporter.sendMail({
         from: this.config.getOrThrow<string>('SMTP_FROM'),
         to,
@@ -31,4 +34,5 @@ export class MailService {
       );
     }
   }
+
 }
