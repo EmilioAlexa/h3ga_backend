@@ -10,57 +10,58 @@ datasource db {
 }
 
 model clientes {
-  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  grupo_principal_id            Int?                            @db.SmallInt
-  nombre                        String
-  apellido_paterno              String
-  apellido_materno              String?
-  referido_por                  String?
-  telefono                      String?
-  asesor_id                     String?                         @db.Uuid
-  fecha_ingreso                 DateTime?                       @db.Date
-  correo_electronico            String?
-  curp                          String?                         @db.VarChar(18)
-  rfc                           String?                         @db.VarChar(13)
-  fecha_nacimiento              DateTime?                       @db.Date
-  estado_civil                  String?
-  dependientes_economicos       Int?
-  regimen_id                    Int?                            @db.SmallInt
-  nss                           String?                         @db.VarChar(11)
-  ley_probable_id               Int?                            @db.SmallInt
-  semanas_imss_reconocidas      Int?
-  semanas_a_recuperar           Int?
-  tiene_issste                  String?
-  afore_id                      Int?                            @db.SmallInt
-  observaciones_generales       String?
-  requiere_contadora            String?
-  sexo                          String?
-  ocupacion                     String?
-  domicilio                     String?
-  estado                        String?
-  subdelegacion_imss_probable   String?
-  cambio_afore                  String?
-  ine                           String?                         @db.VarChar(18)
-  objetivo_cliente              String?
-  cliente_objetivos_especificos cliente_objetivos_especificos[]
-  afore                         afore?                          @relation(fields: [afore_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_afore")
-  usuarios                      usuarios?                       @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_asesor")
-  grupos_principales            grupos_principales?             @relation(fields: [grupo_principal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_grupo_principal")
-  ley_probable                  ley_probable?                   @relation(fields: [ley_probable_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_ley_probable")
-  regimen_principal             regimen_principal?              @relation(fields: [regimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_regimen")
-  contratos                     contratos[]
-  correcciones_cliente          correcciones_cliente[]
-  credenciales_correo_cliente   credenciales_correo_cliente?
-  diagnostico_especializado     diagnostico_especializado?
-  documentos_clientes           documentos_clientes[]
-  envios_documento              envios_documento[]
-  etapas_tramite                etapas_tramite[]
-  eventos_agenda                eventos_agenda[]
-  historial_laboral             historial_laboral?
-  informacion_fiscal            informacion_fiscal?
-  modalidades_aplicacion        modalidades_aplicacion[]
-  periodos_inconsistencias      periodos_inconsistencias[]
-  tareas_auxiliar               tareas_auxiliar[]
+  id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  grupo_principal_id                Int?                                @db.SmallInt
+  nombre                            String
+  apellido_paterno                  String
+  apellido_materno                  String?
+  referido_por                      String?
+  telefono                          String?
+  asesor_id                         String?                             @db.Uuid
+  fecha_ingreso                     DateTime?                           @db.Date
+  correo_electronico                String?
+  curp                              String?                             @db.VarChar(18)
+  rfc                               String?                             @db.VarChar(13)
+  fecha_nacimiento                  DateTime?                           @db.Date
+  estado_civil                      String?
+  dependientes_economicos           Int?
+  regimen_id                        Int?                                @db.SmallInt
+  nss                               String?                             @db.VarChar(11)
+  ley_probable_id                   Int?                                @db.SmallInt
+  semanas_imss_reconocidas          Int?
+  semanas_a_recuperar               Int?
+  tiene_issste                      String?
+  afore_id                          Int?                                @db.SmallInt
+  observaciones_generales           String?
+  requiere_contadora                String?
+  sexo                              String?
+  ocupacion                         String?
+  domicilio                         String?
+  estado                            String?
+  subdelegacion_imss_probable       String?
+  cambio_afore                      String?
+  ine                               String?                             @db.VarChar(18)
+  objetivo_cliente                  String?
+  cliente_objetivos_especificos     cliente_objetivos_especificos[]
+  afore                             afore?                              @relation(fields: [afore_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_afore")
+  usuarios                          usuarios?                           @relation(fields: [asesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_asesor")
+  grupos_principales                grupos_principales?                 @relation(fields: [grupo_principal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_grupo_principal")
+  ley_probable                      ley_probable?                       @relation(fields: [ley_probable_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_ley_probable")
+  regimen_principal                 regimen_principal?                  @relation(fields: [regimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_regimen")
+  contratos                         contratos[]
+  correcciones_cliente              correcciones_cliente[]
+  credenciales_correo_cliente       credenciales_correo_cliente?
+  diagnostico_especializado         diagnostico_especializado?
+  documentos_clientes               documentos_clientes[]
+  envios_documento                  envios_documento[]
+  etapas_tramite                    etapas_tramite[]
+  eventos_agenda                    eventos_agenda[]
+  historial_laboral                 historial_laboral?
+  informacion_fiscal                informacion_fiscal?
+  modalidades_aplicacion            modalidades_aplicacion[]
+  periodos_inconsistencias          periodos_inconsistencias[]
+  tareas_auxiliar                   tareas_auxiliar[]
+  servicios_complementarios_tramite servicios_complementarios_tramite[]
 }
 
 model comisiones {
@@ -118,6 +119,7 @@ model contratos {
   seguimiento_m10                    seguimiento_m10?
   seguimiento_m40                    seguimiento_m40?
   seguimiento_m40_retroactiva        seguimiento_m40_retroactiva?
+  servicios_complementarios_tramite  servicios_complementarios_tramite[]
 }
 
 model cortes_financieros {
@@ -454,12 +456,13 @@ model seguimiento_m40_retroactiva {
 }
 
 model servicios {
-  id                  Int                   @id @default(autoincrement()) @db.SmallInt
-  nombre              String                @unique
-  descripcion         String?
-  activo              Boolean               @default(true)
-  contratos           contratos[]
-  esquemas_dispersion esquemas_dispersion[]
+  id                                Int                                 @id @default(autoincrement()) @db.SmallInt
+  nombre                            String                              @unique
+  descripcion                       String?
+  activo                            Boolean                             @default(true)
+  contratos                         contratos[]
+  esquemas_dispersion               esquemas_dispersion[]
+  servicios_complementarios_tramite servicios_complementarios_tramite[]
 }
 
 model tipos_asesor {
@@ -495,24 +498,24 @@ model tipos_venta {
 }
 
 model usuarios {
-  id                                                                                String                               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rol_id                                                                            Int                                  @db.SmallInt
+  id                                                                                String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rol_id                                                                            Int                                   @db.SmallInt
   nombre                                                                            String
   apellido_paterno                                                                  String
   apellido_materno                                                                  String?
-  correo_electronico                                                                String                               @unique
-  activo                                                                            Boolean                              @default(true)
-  fecha_creacion                                                                    DateTime                             @default(now()) @db.Timestamptz(6)
+  correo_electronico                                                                String                                @unique
+  activo                                                                            Boolean                               @default(true)
+  fecha_creacion                                                                    DateTime                              @default(now()) @db.Timestamptz(6)
   password_hash                                                                     String?
   avisos                                                                            avisos[]
   clientes                                                                          clientes[]
   comisiones                                                                        comisiones[]
   configuracion_comisiones_obsoleta                                                 configuracion_comisiones_obsoleta[]
-  contrato_dispersion_detalle_contrato_dispersion_detalle_beneficiario_idTousuarios contrato_dispersion_detalle[]        @relation("contrato_dispersion_detalle_beneficiario_idTousuarios")
-  contrato_dispersion_detalle_contrato_dispersion_detalle_creado_porTousuarios      contrato_dispersion_detalle[]        @relation("contrato_dispersion_detalle_creado_porTousuarios")
+  contrato_dispersion_detalle_contrato_dispersion_detalle_beneficiario_idTousuarios contrato_dispersion_detalle[]         @relation("contrato_dispersion_detalle_beneficiario_idTousuarios")
+  contrato_dispersion_detalle_contrato_dispersion_detalle_creado_porTousuarios      contrato_dispersion_detalle[]         @relation("contrato_dispersion_detalle_creado_porTousuarios")
   contratos                                                                         contratos[]
-  cortes_financieros_cortes_financieros_cerrado_porTousuarios                       cortes_financieros[]                 @relation("cortes_financieros_cerrado_porTousuarios")
-  cortes_financieros_cortes_financieros_creado_porTousuarios                        cortes_financieros[]                 @relation("cortes_financieros_creado_porTousuarios")
+  cortes_financieros_cortes_financieros_cerrado_porTousuarios                       cortes_financieros[]                  @relation("cortes_financieros_cerrado_porTousuarios")
+  cortes_financieros_cortes_financieros_creado_porTousuarios                        cortes_financieros[]                  @relation("cortes_financieros_creado_porTousuarios")
   credenciales_correo_cliente                                                       credenciales_correo_cliente[]
   detalle_prenomina                                                                 detalle_prenomina[]
   diagnostico_especializado                                                         diagnostico_especializado[]
@@ -522,24 +525,25 @@ model usuarios {
   etapas_tramite_historial                                                          etapas_tramite_historial[]
   eventos_agenda                                                                    eventos_agenda[]
   evidencias_pago                                                                   evidencias_pago[]
-  formatos_institucionales_formatos_institucionales_actualizado_porTousuarios       formatos_institucionales[]           @relation("formatos_institucionales_actualizado_porTousuarios")
-  formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]           @relation("formatos_institucionales_creado_porTousuarios")
+  formatos_institucionales_formatos_institucionales_actualizado_porTousuarios       formatos_institucionales[]            @relation("formatos_institucionales_actualizado_porTousuarios")
+  formatos_institucionales_formatos_institucionales_creado_porTousuarios            formatos_institucionales[]            @relation("formatos_institucionales_creado_porTousuarios")
   historial_estados_pago                                                            historial_estados_pago[]
   pagos                                                                             pagos[]
-  pagos_recibidos                                                                   pagos[]                              @relation("pagos_recibido_por")
+  pagos_recibidos                                                                   pagos[]                               @relation("pagos_recibido_por")
   prenomina                                                                         prenomina[]
-  tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                    @relation("tareas_auxiliar_asignado_porTousuarios")
-  tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                    @relation("tareas_auxiliar_auxiliar_idTousuarios")
-  tareas_auxiliar_tareas_auxiliar_validado_porTousuarios                            tareas_auxiliar[]                    @relation("tareas_auxiliar_validado_porTousuarios")
-  roles                                                                             roles                                @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
-  receptores_dispersion_receptor_usuario                                            receptores_dispersion[]              @relation("receptor_dispersion_usuario")
-  receptores_dispersion_receptor_creador                                            receptores_dispersion[]              @relation("receptor_dispersion_creador")
+  tareas_auxiliar_tareas_auxiliar_asignado_porTousuarios                            tareas_auxiliar[]                     @relation("tareas_auxiliar_asignado_porTousuarios")
+  tareas_auxiliar_tareas_auxiliar_auxiliar_idTousuarios                             tareas_auxiliar[]                     @relation("tareas_auxiliar_auxiliar_idTousuarios")
+  tareas_auxiliar_tareas_auxiliar_validado_porTousuarios                            tareas_auxiliar[]                     @relation("tareas_auxiliar_validado_porTousuarios")
+  roles                                                                             roles                                 @relation(fields: [rol_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuarios_rol")
+  receptores_dispersion_receptor_usuario                                            receptores_dispersion[]               @relation("receptor_dispersion_usuario")
+  receptores_dispersion_receptor_creador                                            receptores_dispersion[]               @relation("receptor_dispersion_creador")
   historial_configuracion_dispersion                                                historial_configuracion_dispersion[]
   historial_estados_comisiones                                                      historial_estados_comisiones[]
   historial_estados_corte                                                           historial_estados_corte[]
-  versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                @relation("versiones_documento_revisor_idTousuarios")
-  versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                @relation("versiones_documento_subido_porTousuarios")
-  password_reset_codes password_reset_codes[]
+  versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                 @relation("versiones_documento_revisor_idTousuarios")
+  versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                 @relation("versiones_documento_subido_porTousuarios")
+  password_reset_codes                                                              password_reset_codes[]
+  servicios_complementarios_historial                                               servicios_complementarios_historial[]
 }
 
 model afore {
@@ -578,17 +582,18 @@ model analisis_recuperacion_semanas {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model avisos {
-  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tipo             tipo_aviso
-  etapa_tramite_id String?         @db.Uuid
-  evento_id        String?         @db.Uuid
-  fecha_alerta     DateTime        @db.Timestamptz(6)
-  atendido         Boolean         @default(false)
-  atendido_por     String?         @db.Uuid
-  fecha_atencion   DateTime?       @db.Timestamptz(6)
-  usuarios         usuarios?       @relation(fields: [atendido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_atendido_por")
-  etapas_tramite   etapas_tramite? @relation(fields: [etapa_tramite_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_etapa_tramite")
-  eventos_agenda   eventos_agenda? @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_evento")
+  id                               String                             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo                             tipo_aviso
+  etapa_tramite_id                 String?                            @db.Uuid
+  evento_id                        String?                            @db.Uuid
+  fecha_alerta                     DateTime                           @db.Timestamptz(6)
+  atendido                         Boolean                            @default(false)
+  atendido_por                     String?                            @db.Uuid
+  fecha_atencion                   DateTime?                          @db.Timestamptz(6)
+  usuarios                         usuarios?                          @relation(fields: [atendido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_atendido_por")
+  etapas_tramite                   etapas_tramite?                    @relation(fields: [etapa_tramite_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_etapa_tramite")
+  eventos_agenda                   eventos_agenda?                    @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_avisos_evento")
+  servicios_complementarios_avisos servicios_complementarios_avisos[]
 }
 
 model cliente_objetivos_especificos {
@@ -744,21 +749,22 @@ model divisiones {
 }
 
 model documentos_clientes {
-  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cliente_id              String               @db.Uuid
-  tipo_documento_id       Int                  @db.SmallInt
-  archivo_path            String
-  nombre_archivo_original String?
-  mime_type               String?
-  estatus                 estado_confirmacion?
-  numero_referencia       String?
-  fecha_carga             DateTime             @default(now()) @db.Timestamptz(6)
-  subido_por              String?              @db.Uuid
-  observaciones           String?
-  clientes                clientes             @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_cliente")
-  tipo_documento          tipo_documento       @relation(fields: [tipo_documento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_tipo")
-  usuarios                usuarios?            @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_usuario")
-  envios_documento        envios_documento[]
+  id                                 String                                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                         String                                 @db.Uuid
+  tipo_documento_id                  Int                                    @db.SmallInt
+  archivo_path                       String
+  nombre_archivo_original            String?
+  mime_type                          String?
+  estatus                            estado_confirmacion?
+  numero_referencia                  String?
+  fecha_carga                        DateTime                               @default(now()) @db.Timestamptz(6)
+  subido_por                         String?                                @db.Uuid
+  observaciones                      String?
+  clientes                           clientes                               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_cliente")
+  tipo_documento                     tipo_documento                         @relation(fields: [tipo_documento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_tipo")
+  usuarios                           usuarios?                              @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_documentos_clientes_usuario")
+  envios_documento                   envios_documento[]
+  serviciosComplementariosDocumentos servicios_complementarios_documentos[]
 }
 
 model escenario_pension {
@@ -782,20 +788,23 @@ model escenario_pension {
 }
 
 model estatus_tramite {
-  id                                                                                     Int                        @id @default(autoincrement()) @db.SmallInt
+  id                                                                                     Int                                   @id @default(autoincrement()) @db.SmallInt
   nombre                                                                                 String
   descripcion                                                                            String?
   categoria                                                                              categoria_tramite
-  avance_porcentaje_fijo                                                                 Int?                       @db.SmallInt
-  avance_editable                                                                        Boolean                    @default(false)
-  avance_min                                                                             Int?                       @db.SmallInt
-  avance_max                                                                             Int?                       @db.SmallInt
+  avance_porcentaje_fijo                                                                 Int?                                  @db.SmallInt
+  avance_editable                                                                        Boolean                               @default(false)
+  avance_min                                                                             Int?                                  @db.SmallInt
+  avance_max                                                                             Int?                                  @db.SmallInt
   etapas_tramite                                                                         etapas_tramite[]
-  etapas_tramite_historial_etapas_tramite_historial_estatus_anterior_idToestatus_tramite etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_anterior_idToestatus_tramite")
-  etapas_tramite_historial_etapas_tramite_historial_estatus_nuevo_idToestatus_tramite    etapas_tramite_historial[] @relation("etapas_tramite_historial_estatus_nuevo_idToestatus_tramite")
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m10_idToestatus_modalidad        modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad")
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m40_idToestatus_modalidad        modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad")
-  modalidades_aplicacion_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad       modalidades_aplicacion[]   @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad")
+  etapas_tramite_historial_etapas_tramite_historial_estatus_anterior_idToestatus_tramite etapas_tramite_historial[]            @relation("etapas_tramite_historial_estatus_anterior_idToestatus_tramite")
+  etapas_tramite_historial_etapas_tramite_historial_estatus_nuevo_idToestatus_tramite    etapas_tramite_historial[]            @relation("etapas_tramite_historial_estatus_nuevo_idToestatus_tramite")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m10_idToestatus_modalidad        modalidades_aplicacion[]              @relation("modalidades_aplicacion_estatus_m10_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40_idToestatus_modalidad        modalidades_aplicacion[]              @relation("modalidades_aplicacion_estatus_m40_idToestatus_modalidad")
+  modalidades_aplicacion_modalidades_aplicacion_estatus_m40r_idToestatus_modalidad       modalidades_aplicacion[]              @relation("modalidades_aplicacion_estatus_m40r_idToestatus_modalidad")
+  servicios_complementarios_tramite                                                      servicios_complementarios_tramite[]
+  sc_historial_anterior                                                                  servicios_complementarios_historial[] @relation("sc_estatus_anterior")
+  sc_historial_nuevo                                                                     servicios_complementarios_historial[] @relation("sc_estatus_nuevo")
 }
 
 model estrategia_recomendada_tipo {
@@ -812,23 +821,24 @@ model etapas_proceso {
 }
 
 model etapas_tramite {
-  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cliente_id               String                     @db.Uuid
-  etapa_id                 Int                        @db.SmallInt
-  estatus_id               Int                        @db.SmallInt
-  avance_porcentaje        Int                        @default(0) @db.SmallInt
-  accion_a_realizar        String?
-  fecha_compromiso         DateTime?                  @db.Date
-  fecha_completada         DateTime?                  @db.Date
-  reactivado_en            DateTime?                  @db.Timestamptz(6)
-  creado_el                DateTime                   @default(now()) @db.Timestamptz(6)
-  actualizado_el           DateTime                   @default(now()) @db.Timestamptz(6)
-  motivo_rechazo           String?
-  avisos                   avisos[]
-  clientes                 clientes                   @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_cliente")
-  estatus_tramite          estatus_tramite            @relation(fields: [estatus_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_estatus")
-  etapas_proceso           etapas_proceso             @relation(fields: [etapa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_etapa")
-  etapas_tramite_historial etapas_tramite_historial[]
+  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id                  String                       @db.Uuid
+  etapa_id                    Int                          @db.SmallInt
+  estatus_id                  Int                          @db.SmallInt
+  avance_porcentaje           Int                          @default(0) @db.SmallInt
+  accion_a_realizar           String?
+  fecha_compromiso            DateTime?                    @db.Date
+  fecha_completada            DateTime?                    @db.Date
+  reactivado_en               DateTime?                    @db.Timestamptz(6)
+  creado_el                   DateTime                     @default(now()) @db.Timestamptz(6)
+  actualizado_el              DateTime                     @default(now()) @db.Timestamptz(6)
+  motivo_rechazo              String?
+  avisos                      avisos[]
+  clientes                    clientes                     @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_cliente")
+  estatus_tramite             estatus_tramite              @relation(fields: [estatus_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_estatus")
+  etapas_proceso              etapas_proceso               @relation(fields: [etapa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_etapa")
+  etapas_tramite_historial    etapas_tramite_historial[]
+  pension_final_datos_tramite pension_final_datos_tramite?
 
   @@unique([cliente_id, etapa_id], map: "uq_etapas_tramite_cliente_etapa")
 }
@@ -1527,7 +1537,6 @@ enum tipo_formato {
   enlace
 }
 
-
 model password_reset_codes {
   id             String   @id @default(uuid()) @db.Uuid
   usuario_id     String   @db.Uuid
@@ -1540,4 +1549,82 @@ model password_reset_codes {
   usuario usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
   @@index([usuario_id])
+}
+
+model pension_final_datos_tramite {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  etapa_tramite_id     String    @unique @db.Uuid
+  institucion          String?   @db.VarChar(100)
+  folio_institucional  String?   @db.VarChar(100)
+  numero_expediente    String?   @db.VarChar(100)
+  fecha_solicitud      DateTime? @db.Date
+  fecha_resolucion     DateTime? @db.Date
+  resultado_resolucion String?
+  observaciones        String?
+  creado_el            DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_el       DateTime  @default(now()) @db.Timestamptz(6)
+
+  etapas_tramite etapas_tramite @relation(fields: [etapa_tramite_id], references: [id])
+}
+
+model servicios_complementarios_tramite {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id        String    @db.Uuid
+  servicio_id       Int       @db.SmallInt
+  contrato_id       String?   @db.Uuid
+  estatus_id        Int       @db.SmallInt
+  avance_porcentaje Int       @default(0) @db.SmallInt
+  accion_a_realizar String?
+  fecha_compromiso  DateTime? @db.Date
+  fecha_completada  DateTime? @db.Date
+  reactivado_en     DateTime? @db.Timestamptz(6)
+  motivo_rechazo    String?
+  observaciones     String?
+  creado_el         DateTime  @default(now()) @db.Timestamptz(6)
+  actualizado_el    DateTime  @default(now()) @db.Timestamptz(6)
+
+  clientes        clientes        @relation(fields: [cliente_id], references: [id])
+  servicios       servicios       @relation(fields: [servicio_id], references: [id])
+  contratos       contratos?      @relation(fields: [contrato_id], references: [id])
+  estatus_tramite estatus_tramite @relation(fields: [estatus_id], references: [id])
+
+  historial  servicios_complementarios_historial[]
+  documentos servicios_complementarios_documentos[]
+  avisos     servicios_complementarios_avisos[]
+}
+
+model servicios_complementarios_historial {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  servicio_tramite_id String   @db.Uuid
+  estatus_anterior_id Int?     @db.SmallInt
+  estatus_nuevo_id    Int      @db.SmallInt
+  motivo_rechazo      String?
+  cambiado_por        String   @db.Uuid
+  fecha_cambio        DateTime @default(now()) @db.Timestamptz(6)
+
+  tramite          servicios_complementarios_tramite @relation(fields: [servicio_tramite_id], references: [id])
+  estatus_anterior estatus_tramite?                  @relation("sc_estatus_anterior", fields: [estatus_anterior_id], references: [id])
+  estatus_nuevo    estatus_tramite                   @relation("sc_estatus_nuevo", fields: [estatus_nuevo_id], references: [id])
+  usuario          usuarios                          @relation(fields: [cambiado_por], references: [id])
+}
+
+model servicios_complementarios_documentos {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  servicio_tramite_id String   @db.Uuid
+  documento_id        String   @db.Uuid
+  creado_el           DateTime @default(now()) @db.Timestamptz(6)
+
+  tramite   servicios_complementarios_tramite @relation(fields: [servicio_tramite_id], references: [id])
+  documento documentos_clientes               @relation(fields: [documento_id], references: [id])
+}
+
+model servicios_complementarios_avisos {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  servicio_tramite_id String @db.Uuid
+  aviso_id            String @db.Uuid
+
+  tramite servicios_complementarios_tramite @relation(fields: [servicio_tramite_id], references: [id])
+  aviso   avisos                            @relation(fields: [aviso_id], references: [id])
+
+  @@unique([servicio_tramite_id, aviso_id])
 }
