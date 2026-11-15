@@ -839,6 +839,7 @@ model etapas_tramite {
   etapas_proceso              etapas_proceso               @relation(fields: [etapa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_etapas_tramite_etapa")
   etapas_tramite_historial    etapas_tramite_historial[]
   pension_final_datos_tramite pension_final_datos_tramite?
+  tareas_auxiliar             tareas_auxiliar[]
 
   @@unique([cliente_id, etapa_id], map: "uq_etapas_tramite_cliente_etapa")
 }
@@ -1339,6 +1340,8 @@ model tareas_auxiliar {
   usuarios_tareas_auxiliar_auxiliar_idTousuarios  usuarios               @relation("tareas_auxiliar_auxiliar_idTousuarios", fields: [auxiliar_id], references: [id])
   clientes                                        clientes               @relation(fields: [cliente_id], references: [id])
   usuarios_tareas_auxiliar_validado_porTousuarios usuarios?              @relation("tareas_auxiliar_validado_porTousuarios", fields: [validado_por], references: [id])
+  etapa_tramite_id                                String?                @db.Uuid
+  etapasTramite                                   etapas_tramite?        @relation(fields: [etapa_tramite_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tareas_auxiliar_etapa_tramite")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -1357,6 +1360,8 @@ model versiones_documento {
   envios_documento                                  envios_documento    @relation(fields: [envio_id], references: [id])
   usuarios_versiones_documento_revisor_idTousuarios usuarios?           @relation("versiones_documento_revisor_idTousuarios", fields: [revisor_id], references: [id])
   usuarios_versiones_documento_subido_porTousuarios usuarios            @relation("versiones_documento_subido_porTousuarios", fields: [subido_por], references: [id])
+  nombre_archivo_original                           String?
+  mime_type                                         String?             @db.VarChar(100)
 
   @@unique([envio_id, numero_version])
 }
