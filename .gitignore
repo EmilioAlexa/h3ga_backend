@@ -176,3 +176,6 @@ docs/
 
 /postman/
 /diagramsProyect/
+
+# Migración local para pruebas
+/prisma/migrations/20261113050000_roles_iniciales/
