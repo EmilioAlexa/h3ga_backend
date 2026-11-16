@@ -1,4 +1,4 @@
-import {Injectable, BadRequestException, NotFoundException, } from '@nestjs/common';
+import {Injectable, BadRequestException, NotFoundException, NotImplementedException} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
 import { QueryFormatosDto } from './dto/query-formatos.dto';
@@ -9,10 +9,13 @@ import { CreateFormatoDto } from './dto/create-formato.dto';
 export class FormatosInstitucionalesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: QueryFormatosDto) {
+
+async findAll(query: QueryFormatosDto, esBiblioteca: boolean = false) {
   const {
+    nuevos,
     buscar,
     tipo,
+    dependencia_id,
     desde,
     hasta,
     orden = 'recientes',
@@ -20,6 +23,7 @@ export class FormatosInstitucionalesService {
     limite = 10,
   } = query;
 
+  // Convertir fechas recibidas
   const inicio = desde
     ? new Date(`${desde}T00:00:00.000Z`)
     : undefined;
@@ -28,6 +32,7 @@ export class FormatosInstitucionalesService {
     ? new Date(`${hasta}T23:59:59.999Z`)
     : undefined;
 
+  // Validar fechas
   if (
     (inicio && Number.isNaN(inicio.getTime())) ||
     (fin && Number.isNaN(fin.getTime()))
@@ -41,8 +46,38 @@ export class FormatosInstitucionalesService {
     );
   }
 
+  // Calcular fecha mínima para formatos nuevos (últimos 7 días)
+  const fechaNuevos =
+    esBiblioteca && nuevos
+      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      : undefined;
+
+  // Combinar filtro de fecha inicial y filtro de nuevos
+  const fechaDesde =
+    inicio && fechaNuevos
+      ? new Date(
+          Math.max(inicio.getTime(), fechaNuevos.getTime()),
+        )
+      : inicio ?? fechaNuevos;
+
+  // Construir filtros de búsqueda
   const where: Prisma.formatos_institucionalesWhereInput = {
     activo: true,
+
+    ...(dependencia_id && {
+      dependencia_id,
+    }),
+
+    ...((fechaDesde || fin) && {
+      creado_en: {
+        ...(fechaDesde && {
+          gte: fechaDesde,
+        }),
+        ...(fin && {
+          lte: fin,
+        }),
+      },
+    }),
 
     ...(buscar && {
       nombre: {
@@ -54,15 +89,9 @@ export class FormatosInstitucionalesService {
     ...(tipo && {
       tipo_formato: tipo,
     }),
-
-    ...((inicio || fin) && {
-      creado_en: {
-        ...(inicio && { gte: inicio }),
-        ...(fin && { lte: fin }),
-      },
-    }),
   };
 
+  // Consultar total y formatos
   const [total, formatos] = await this.prisma.$transaction([
     this.prisma.formatos_institucionales.count({
       where,
@@ -89,8 +118,7 @@ export class FormatosInstitucionalesService {
 
       orderBy: [
         {
-          creado_en:
-            orden === 'antiguos' ? 'asc' : 'desc',
+          creado_en: orden === 'antiguos' ? 'asc' : 'desc',
         },
         { id: 'asc' },
       ],
@@ -109,6 +137,40 @@ export class FormatosInstitucionalesService {
       totalPaginas: Math.ceil(total / limite),
     },
   };
+}
+
+// Consultar formatos disponibles en la biblioteca
+async findBiblioteca(query: QueryFormatosDto) {
+  const resultado = await this.findAll(query, true);
+
+  const ahora = Date.now();
+  const sieteDias = 7 * 24 * 60 * 60 * 1000;
+
+  const datos = resultado.datos.map((formato) => ({
+    ...formato,
+    es_nuevo:
+      ahora - new Date(formato.creado_en).getTime() <= sieteDias,
+  }));
+
+  return {
+    ...resultado,
+    datos,
+  };
+}
+
+// Descargar formato institucional
+async descargar(id: number) {
+  const formato = await this.findOne(id);
+
+  if (!formato.archivo_path) {
+    throw new BadRequestException(
+      'El formato no tiene un archivo asociado para descargar.',
+    );
+  }
+
+  throw new NotImplementedException(
+    'La descarga estará disponible cuando se configure el almacenamiento de archivos.',
+  );
 }
 
 async findOne(id: number) {
@@ -226,7 +288,38 @@ async update(
     userId: string,
   ) {
   // Verificar que el formato exista y esté activo
-  await this.findOne(id);
+const formatoActual = await this.findOne(id);
+
+// Obtener el tipo y la ruta definitivos después de actualizar
+const tipoFinal = dto.tipo_formato ?? formatoActual.tipo_formato;
+const archivoFinal = dto.archivo_path ?? formatoActual.archivo_path;
+
+// Validar que la extensión coincida con el tipo de formato
+if (archivoFinal) {
+  const extension = archivoFinal.toLowerCase();
+
+  if (tipoFinal === 'pdf' && !extension.endsWith('.pdf')) {
+    throw new BadRequestException(
+      'El archivo debe tener extensión .pdf porque el tipo seleccionado es PDF.',
+    );
+  }
+
+  if (
+    tipoFinal === 'word' &&
+    !extension.endsWith('.doc') &&
+    !extension.endsWith('.docx')
+  ) {
+    throw new BadRequestException(
+      'El archivo debe tener extensión .doc o .docx porque el tipo seleccionado es Word.',
+    );
+  }
+
+  if (tipoFinal === 'enlace') {
+    throw new BadRequestException(
+      'Los formatos de tipo enlace no deben tener un archivo asociado.',
+    );
+  }
+}
 
   // Si se cambia la dependencia, comprobar que exista
   if (dto.dependencia_id !== undefined) {
