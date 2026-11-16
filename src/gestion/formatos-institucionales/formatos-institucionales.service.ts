@@ -1,4 +1,4 @@
-import {Injectable, BadRequestException, NotFoundException, } from '@nestjs/common';
+import {Injectable, BadRequestException, NotFoundException, NotImplementedException} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
 import { QueryFormatosDto } from './dto/query-formatos.dto';
@@ -9,10 +9,12 @@ import { CreateFormatoDto } from './dto/create-formato.dto';
 export class FormatosInstitucionalesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: QueryFormatosDto) {
+  async findAll(query: QueryFormatosDto, esBiblioteca: boolean = false) {
   const {
+    nuevos,
     buscar,
     tipo,
+    dependencia_id,
     desde,
     hasta,
     orden = 'recientes',
@@ -42,25 +44,37 @@ export class FormatosInstitucionalesService {
   }
 
   const where: Prisma.formatos_institucionalesWhereInput = {
-    activo: true,
+  activo: true,
 
-    ...(buscar && {
-      nombre: {
-        contains: buscar,
-        mode: 'insensitive',
-      },
-    }),
+  ...(dependencia_id && {
+    dependencia_id,
+  }),
+  ...(esBiblioteca && nuevos && {
+  creado_en: {
+    gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+  },
+}),
+
+  ...(buscar && {
+    nombre: {
+      contains: buscar,
+      mode: 'insensitive',
+    },
+  }),
 
     ...(tipo && {
       tipo_formato: tipo,
     }),
 
-    ...((inicio || fin) && {
-      creado_en: {
-        ...(inicio && { gte: inicio }),
-        ...(fin && { lte: fin }),
-      },
+    ...((inicio || fin || (esBiblioteca && nuevos)) && {
+  creado_en: {
+    ...(inicio && { gte: inicio }),
+    ...(fin && { lte: fin }),
+    ...(esBiblioteca && nuevos && {
+      gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     }),
+  },
+}),
   };
 
   const [total, formatos] = await this.prisma.$transaction([
@@ -109,6 +123,39 @@ export class FormatosInstitucionalesService {
       totalPaginas: Math.ceil(total / limite),
     },
   };
+}
+// Consultar formatos disponibles en la biblioteca
+async findBiblioteca(query: QueryFormatosDto) {
+  const resultado = await this.findAll(query, true);
+
+  const ahora = Date.now();
+  const sieteDias = 7 * 24 * 60 * 60 * 1000;
+
+  const datos = resultado.datos.map((formato) => ({
+    ...formato,
+    es_nuevo:
+      ahora - new Date(formato.creado_en).getTime() <= sieteDias,
+  }));
+
+  return {
+    ...resultado,
+    datos,
+  };
+}
+
+// Descargar formato institucional
+async descargar(id: number) {
+  const formato = await this.findOne(id);
+
+  if (!formato.archivo_path) {
+    throw new BadRequestException(
+      'El formato no tiene un archivo asociado para descargar.',
+    );
+  }
+
+  throw new NotImplementedException(
+    'La descarga estará disponible cuando se configure el almacenamiento de archivos.',
+  );
 }
 
 async findOne(id: number) {
@@ -226,7 +273,38 @@ async update(
     userId: string,
   ) {
   // Verificar que el formato exista y esté activo
-  await this.findOne(id);
+const formatoActual = await this.findOne(id);
+
+// Obtener el tipo y la ruta definitivos después de actualizar
+const tipoFinal = dto.tipo_formato ?? formatoActual.tipo_formato;
+const archivoFinal = dto.archivo_path ?? formatoActual.archivo_path;
+
+// Validar que la extensión coincida con el tipo de formato
+if (archivoFinal) {
+  const extension = archivoFinal.toLowerCase();
+
+  if (tipoFinal === 'pdf' && !extension.endsWith('.pdf')) {
+    throw new BadRequestException(
+      'El archivo debe tener extensión .pdf porque el tipo seleccionado es PDF.',
+    );
+  }
+
+  if (
+    tipoFinal === 'word' &&
+    !extension.endsWith('.doc') &&
+    !extension.endsWith('.docx')
+  ) {
+    throw new BadRequestException(
+      'El archivo debe tener extensión .doc o .docx porque el tipo seleccionado es Word.',
+    );
+  }
+
+  if (tipoFinal === 'enlace') {
+    throw new BadRequestException(
+      'Los formatos de tipo enlace no deben tener un archivo asociado.',
+    );
+  }
+}
 
   // Si se cambia la dependencia, comprobar que exista
   if (dto.dependencia_id !== undefined) {

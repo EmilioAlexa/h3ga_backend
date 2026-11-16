@@ -26,7 +26,6 @@ interface AuthenticatedUser {
 
 @Controller('gestion/formatos')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('administrador')
 export class FormatosInstitucionalesController {
   constructor(
     private readonly formatosService: FormatosInstitucionalesService,
@@ -34,18 +33,38 @@ export class FormatosInstitucionalesController {
 
   // List formats with filters
   @Get()
+  @Roles('administrador', 'asesor', 'auxiliar_administrativo')
   findAll(@Query() query: QueryFormatosDto) {
     return this.formatosService.findAll(query);
   }
+// Consultar formatos y filtros para la biblioteca
+
+   @Get('biblioteca')
+@Roles('administrador', 'asesor', 'auxiliar_administrativo')
+findBiblioteca(@Query() query: QueryFormatosDto) {
+  return this.formatosService.findBiblioteca(query);
+}
+
+// descargar un formato por ID
+@Get(':id/descargar')
+@Roles('administrador', 'asesor', 'auxiliar_administrativo')
+descargar(
+  @Param('id', ParseIntPipe) id: number,
+) {
+  return this.formatosService.descargar(id);
+}
+  
 
   // Get a format by ID
   @Get(':id')
+  @Roles('administrador', 'asesor', 'auxiliar_administrativo')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.formatosService.findOne(id);
   }
 
   // Create a format
   @Post()
+  @Roles('administrador')
   create(
     @Body() dto: CreateFormatoDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -55,6 +74,7 @@ export class FormatosInstitucionalesController {
 
   // Update a format
   @Patch(':id')
+  @Roles('administrador')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateFormatoDto,
@@ -65,10 +85,12 @@ export class FormatosInstitucionalesController {
 
   // Delete a format (soft delete)
   @Delete(':id')
+  @Roles('administrador')
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.formatosService.remove(id, user.id);
   }
+ 
 }

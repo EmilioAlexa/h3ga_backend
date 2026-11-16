@@ -6,8 +6,10 @@ import {
   Matches,
   Max,
   Min,
+  IsPositive,
+  IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class QueryFormatosDto {
   @IsOptional()
@@ -17,6 +19,17 @@ export class QueryFormatosDto {
   @IsOptional()
   @IsIn(['pdf', 'word', 'enlace'])
   tipo?: 'pdf' | 'word' | 'enlace';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  dependencia_id?: number;
+
+  @IsOptional()
+@Transform(({ value }) => value === 'true')
+@IsBoolean()
+nuevos?: boolean;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
