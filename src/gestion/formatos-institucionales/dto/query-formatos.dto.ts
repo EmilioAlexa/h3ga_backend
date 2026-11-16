@@ -1,4 +1,7 @@
+
+import { Type, Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -6,10 +9,7 @@ import {
   Matches,
   Max,
   Min,
-  IsPositive,
-  IsBoolean,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
 
 export class QueryFormatosDto {
   @IsOptional()
@@ -23,13 +23,8 @@ export class QueryFormatosDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @IsPositive()
+  @Min(1)
   dependencia_id?: number;
-
-  @IsOptional()
-@Transform(({ value }) => value === 'true')
-@IsBoolean()
-nuevos?: boolean;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
@@ -42,6 +37,15 @@ nuevos?: boolean;
   @IsOptional()
   @IsIn(['recientes', 'antiguos'])
   orden?: 'recientes' | 'antiguos';
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  nuevos?: boolean;
 
   @IsOptional()
   @Type(() => Number)

@@ -9,7 +9,8 @@ import { CreateFormatoDto } from './dto/create-formato.dto';
 export class FormatosInstitucionalesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: QueryFormatosDto, esBiblioteca: boolean = false) {
+
+async findAll(query: QueryFormatosDto, esBiblioteca: boolean = false) {
   const {
     nuevos,
     buscar,
@@ -22,6 +23,7 @@ export class FormatosInstitucionalesService {
     limite = 10,
   } = query;
 
+  // Convertir fechas recibidas
   const inicio = desde
     ? new Date(`${desde}T00:00:00.000Z`)
     : undefined;
@@ -30,6 +32,7 @@ export class FormatosInstitucionalesService {
     ? new Date(`${hasta}T23:59:59.999Z`)
     : undefined;
 
+  // Validar fechas
   if (
     (inicio && Number.isNaN(inicio.getTime())) ||
     (fin && Number.isNaN(fin.getTime()))
@@ -43,40 +46,52 @@ export class FormatosInstitucionalesService {
     );
   }
 
+  // Calcular fecha mínima para formatos nuevos (últimos 7 días)
+  const fechaNuevos =
+    esBiblioteca && nuevos
+      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      : undefined;
+
+  // Combinar filtro de fecha inicial y filtro de nuevos
+  const fechaDesde =
+    inicio && fechaNuevos
+      ? new Date(
+          Math.max(inicio.getTime(), fechaNuevos.getTime()),
+        )
+      : inicio ?? fechaNuevos;
+
+  // Construir filtros de búsqueda
   const where: Prisma.formatos_institucionalesWhereInput = {
-  activo: true,
+    activo: true,
 
-  ...(dependencia_id && {
-    dependencia_id,
-  }),
-  ...(esBiblioteca && nuevos && {
-  creado_en: {
-    gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  },
-}),
+    ...(dependencia_id && {
+      dependencia_id,
+    }),
 
-  ...(buscar && {
-    nombre: {
-      contains: buscar,
-      mode: 'insensitive',
-    },
-  }),
+    ...((fechaDesde || fin) && {
+      creado_en: {
+        ...(fechaDesde && {
+          gte: fechaDesde,
+        }),
+        ...(fin && {
+          lte: fin,
+        }),
+      },
+    }),
+
+    ...(buscar && {
+      nombre: {
+        contains: buscar,
+        mode: 'insensitive',
+      },
+    }),
 
     ...(tipo && {
       tipo_formato: tipo,
     }),
-
-    ...((inicio || fin || (esBiblioteca && nuevos)) && {
-  creado_en: {
-    ...(inicio && { gte: inicio }),
-    ...(fin && { lte: fin }),
-    ...(esBiblioteca && nuevos && {
-      gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    }),
-  },
-}),
   };
 
+  // Consultar total y formatos
   const [total, formatos] = await this.prisma.$transaction([
     this.prisma.formatos_institucionales.count({
       where,
@@ -103,8 +118,7 @@ export class FormatosInstitucionalesService {
 
       orderBy: [
         {
-          creado_en:
-            orden === 'antiguos' ? 'asc' : 'desc',
+          creado_en: orden === 'antiguos' ? 'asc' : 'desc',
         },
         { id: 'asc' },
       ],
@@ -124,6 +138,7 @@ export class FormatosInstitucionalesService {
     },
   };
 }
+
 // Consultar formatos disponibles en la biblioteca
 async findBiblioteca(query: QueryFormatosDto) {
   const resultado = await this.findAll(query, true);
