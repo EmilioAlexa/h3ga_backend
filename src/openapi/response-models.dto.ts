@@ -312,6 +312,9 @@ export class EvidenciaPagoResumenRespuestaDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiProperty({ description: 'Solo una evidencia vigente cuenta para validar.' })
+  vigente: boolean;
+
   @ApiPropertyOptional({ nullable: true })
   nombre_original?: string | null;
 
@@ -320,6 +323,31 @@ export class EvidenciaPagoResumenRespuestaDto {
 
   @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
   tipos_evidencia_pago?: PagoRelacionadoRespuestaDto | null;
+}
+
+export class PagoCorreccionRespuestaDto {
+  @ApiProperty({ format: 'uuid' }) id: string;
+  @ApiProperty({ format: 'uuid' }) pago_id: string;
+  @ApiProperty({ format: 'uuid' }) actor_id: string;
+  @ApiProperty({ format: 'date-time' }) fecha_correccion: string;
+  @ApiProperty({ maxLength: 1000 }) motivo: string;
+  @ApiProperty() estado_anterior_id: number;
+  @ApiProperty() estado_nuevo_id: number;
+  @ApiProperty({ type: String, description: 'Decimal(12,2) como string.' }) monto_anterior: string;
+  @ApiProperty({ type: String, description: 'Decimal(12,2) como string.' }) monto_nuevo: string;
+  @ApiProperty({ format: 'date-time', nullable: true }) fecha_pago_anterior: string | null;
+  @ApiProperty({ format: 'date-time' }) fecha_pago_nueva: string;
+  @ApiProperty({ nullable: true }) forma_pago_id_anterior: number | null;
+  @ApiProperty() forma_pago_id_nueva: number;
+  @ApiProperty({ nullable: true }) observaciones_anteriores: string | null;
+  @ApiProperty({ nullable: true }) observaciones_nuevas: string | null;
+  @ApiProperty({ nullable: true }) folio_recibo_anterior: string | null;
+  @ApiProperty({ nullable: true }) folio_recibo_nuevo: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true }) recibido_por_anterior: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true }) recibido_por_nuevo: string | null;
+  @ApiProperty({ nullable: true }) lugar_recepcion_anterior: string | null;
+  @ApiProperty({ nullable: true }) lugar_recepcion_nuevo: string | null;
+  @ApiProperty({ format: 'uuid' }) historial_estado_id: string;
 }
 
 export class PagoContratoRespuestaDto {
@@ -503,6 +531,15 @@ export class PagoProgramadoRespuestaDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   monto_esperado?: string | null;
+
+  @ApiProperty({ type: String, description: 'Suma decimal de abonos definitivamente Validados.' })
+  monto_abonado_validado: string;
+
+  @ApiProperty({ type: String, nullable: true, description: 'monto_esperado menos abonos Validados; null si no puede ofrecerse un saldo operativo.' })
+  saldo_pendiente_confirmado: string | null;
+
+  @ApiProperty({ nullable: true, enum: ['CANCELADO', 'IMPORTE_NO_DEFINIDO', 'IMPORTE_INVALIDO', 'SOBREPAGO'], description: 'Motivo técnico por el que el saldo operativo es null; no es un estado empresarial nuevo.' })
+  motivo_saldo_no_disponible: string | null;
 
   @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
   periodo?: string | null;

@@ -55,7 +55,7 @@ export class PagosProgramadosController {
   @ApiOperation({
     summary: 'Consultar pagos programados',
     description:
-      'Filtros por contrato, tipo, estado y fecha esperada. El asesor solo ve programaciones de contratos asignados mediante contratos.asesor_id.',
+      'Filtros por contrato, tipo, estado persistido y fecha esperada. El asesor solo ve programaciones de contratos asignados mediante contratos.asesor_id. Cada fila incluye monto abonado Validado y saldo confirmado nullable; el filtro estado_id todavía consulta el estado persistido, no una clasificación operativa calculada.',
   })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -77,7 +77,7 @@ export class PagosProgramadosController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Consultar pago programado por UUID' })
+  @ApiOperation({ summary: 'Consultar pago programado por UUID', description: 'Incluye suma Decimal de abonos Validados y saldo confirmado nullable. Si hay sobrepago, cancelación o importe desconocido, se devuelve motivo técnico en vez de saldo negativo.' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: PagoProgramadoRespuestaDto })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
@@ -94,7 +94,7 @@ export class PagosProgramadosController {
   @ApiOperation({
     summary: 'Registrar una programación de cobro',
     description:
-      'No crea un pago real. Asesores solo pueden asociarla a contratos propios. El estado puede asignarlo administración mediante PATCH /:id/estado.',
+      'No crea un pago real. Asesores solo pueden asociarla a contratos propios. El tipo Penalización exige contrato APD, monto y fecha esperada. El estado puede asignarlo administración mediante PATCH /:id/estado.',
   })
   @ApiCreatedResponse({ type: PagoProgramadoRespuestaDto })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })

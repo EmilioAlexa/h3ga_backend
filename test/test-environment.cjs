@@ -24,6 +24,7 @@ function loadPostgresTestEnvironment() {
   process.env.JWT_EXPIRES_IN = '1h';
   process.env.SWAGGER_ENABLED = 'false';
   process.env.STORAGE_PROVIDER = 'local';
+  process.env.LOCAL_STORAGE_PATH = './storage/postgres-tests';
   process.env.H3GA_I3_TEST_DATABASE_VERIFIED = '1';
   return { host: url.hostname, port: Number(url.port), database: url.pathname.slice(1), schema: 'public' };
 }

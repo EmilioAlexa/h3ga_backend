@@ -12,6 +12,7 @@ import {
   ChangeEstadoPagoDto,
 } from './dto/change-estado-pago.dto';
 import { CreatePagoDto } from './dto/create-pago.dto';
+import { CorrectPagoDto } from './dto/correct-pago.dto';
 import { QueryPagosDto } from './dto/query-pagos.dto';
 import { ComisionesService } from '../comisiones/comisiones.service';
 
@@ -98,6 +99,7 @@ const pagoSelect = {
   evidencias_pago: {
     select: {
       id: true,
+      vigente: true,
       nombre_original: true,
       tipo_archivo: true,
       tipo_evidencia_id: true,
@@ -216,6 +218,133 @@ export class PagosService {
     });
   }
 
+  async findCorrections(id: string, usuario: UsuarioAutenticado) {
+    await this.findOne(id, usuario);
+    return this.prisma.correcciones_pago.findMany({
+      where: { pago_id: id },
+      orderBy: [{ fecha_correccion: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  async correct(id: string, dto: CorrectPagoDto, usuario: UsuarioAutenticado) {
+    if (usuario?.roles?.nombre !== 'asesor' || !usuario.activo) {
+      throw new ForbiddenException('Solo el asesor registrante puede corregir el pago');
+    }
+    const motivo = dto.motivo?.trim();
+    if (!motivo) throw new BadRequestException('La corrección requiere un motivo');
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "pagos" WHERE "id" = ${id}::uuid FOR UPDATE`,
+        );
+        const pago = await tx.pagos.findUnique({
+          where: { id },
+          select: {
+            id: true, registrado_por: true, estado_pago_id: true,
+            estados_pago: { select: { nombre: true } },
+            contratos: { select: { asesor_id: true } },
+            monto: true, fecha_pago: true, forma_pago_id: true,
+            observaciones: true, folio_recibo: true,
+            recibido_por: true, lugar_recepcion: true,
+          },
+        });
+        if (!pago || pago.contratos.asesor_id !== usuario.id) {
+          throw new NotFoundException('Pago no encontrado');
+        }
+        if (pago.registrado_por !== usuario.id) {
+          throw new ForbiddenException('Solo el asesor registrante puede corregir el pago');
+        }
+        if (pago.estados_pago?.nombre !== ESTADO_RECHAZADO || !pago.estado_pago_id) {
+          throw new ConflictException('Solo se puede corregir un pago rechazado');
+        }
+        const [commissions, cutDetails, reservation] = await Promise.all([
+          tx.comisiones.count({ where: { pago_id: id } }),
+          tx.detalle_corte.count({ where: { pago_id: id } }),
+          tx.cortes_pagos_reservados.count({ where: { pago_id: id } }),
+        ]);
+        if (commissions || cutDetails || reservation) {
+          throw new ConflictException('El pago tiene relaciones financieras incompatibles con la corrección');
+        }
+
+        const nextAmount = dto.monto === undefined ? pago.monto : this.parseMonto(dto.monto);
+        const nextDate = dto.fecha_pago === undefined ? pago.fecha_pago : dto.fecha_pago;
+        if (!nextDate) throw new BadRequestException('fecha_pago es obligatoria para corregir el pago');
+        const nextMethodId = dto.forma_pago_id ?? pago.forma_pago_id;
+        if (!nextMethodId) throw new ConflictException('El pago no tiene forma de pago válida');
+        const method = await tx.formas_pago.findUnique({
+          where: { id: nextMethodId, activo: true },
+          select: { id: true, nombre: true },
+        });
+        if (!method) throw new BadRequestException('La forma de pago no existe o está inactiva');
+        const group = this.getFormaNormalizada(method.nombre);
+        const nextObservations = dto.observaciones === undefined
+          ? pago.observaciones : dto.observaciones?.trim() || null;
+        const nextReceipt = group === 'efectivo'
+          ? (dto.folio_recibo === undefined ? pago.folio_recibo : dto.folio_recibo?.trim() || null)
+          : null;
+        const nextReceiver = group === 'efectivo'
+          ? (dto.recibido_por === undefined ? pago.recibido_por : dto.recibido_por)
+          : null;
+        const nextPlace = group === 'efectivo'
+          ? (dto.lugar_recepcion === undefined ? pago.lugar_recepcion : dto.lugar_recepcion?.trim() || null)
+          : null;
+        if (group === 'efectivo' && (!nextReceipt || !nextReceiver)) {
+          throw new BadRequestException('Efectivo requiere folio_recibo y recibido_por');
+        }
+        if (nextReceiver) {
+          const receiver = await tx.usuarios.findUnique({
+            where: { id: nextReceiver }, select: { id: true, activo: true },
+          });
+          if (!receiver?.activo) throw new BadRequestException('El usuario receptor no existe o está inactivo');
+        }
+        const review = await tx.estados_pago.findUnique({
+          where: { nombre: ESTADO_PENDIENTE_REVISION }, select: { id: true },
+        });
+        if (!review) throw new ConflictException('No está configurado el estado de revisión financiera');
+
+        const changed = await tx.pagos.updateMany({
+          where: { id, estado_pago_id: pago.estado_pago_id },
+          data: {
+            monto: nextAmount, fecha_pago: nextDate, forma_pago_id: method.id,
+            observaciones: nextObservations, folio_recibo: nextReceipt,
+            recibido_por: nextReceiver, lugar_recepcion: nextPlace,
+            estado_pago_id: review.id,
+          },
+        });
+        if (changed.count !== 1) throw new ConflictException('El pago cambió durante la corrección');
+        const history = await tx.historial_estados_pago.create({
+          data: {
+            pago_id: id, estado_anterior_id: pago.estado_pago_id,
+            estado_nuevo_id: review.id, cambiado_por: usuario.id,
+            comentario: 'Pago corregido y reenviado a revisión financiera',
+          }, select: { id: true },
+        });
+        const correction = await tx.correcciones_pago.create({
+          data: {
+            pago_id: id, actor_id: usuario.id, motivo,
+            estado_anterior_id: pago.estado_pago_id, estado_nuevo_id: review.id,
+            monto_anterior: pago.monto, monto_nuevo: nextAmount,
+            fecha_pago_anterior: pago.fecha_pago, fecha_pago_nueva: nextDate,
+            forma_pago_id_anterior: pago.forma_pago_id, forma_pago_id_nueva: method.id,
+            observaciones_anteriores: pago.observaciones, observaciones_nuevas: nextObservations,
+            folio_recibo_anterior: pago.folio_recibo, folio_recibo_nuevo: nextReceipt,
+            recibido_por_anterior: pago.recibido_por, recibido_por_nuevo: nextReceiver,
+            lugar_recepcion_anterior: pago.lugar_recepcion, lugar_recepcion_nuevo: nextPlace,
+            historial_estado_id: history.id,
+          }, select: { id: true },
+        });
+        await tx.evidencias_pago.updateMany({
+          where: { pago_id: id, vigente: true },
+          data: { vigente: false, correccion_sustitucion_id: correction.id },
+        });
+        return tx.pagos.findUnique({ where: { id }, select: pagoSelect });
+      });
+    } catch (error) {
+      this.handlePrismaError(error);
+    }
+  }
+
   async create(dto: CreatePagoDto, usuario: UsuarioAutenticado) {
     this.ensureCanCreate(usuario);
     const monto = this.parseMonto(dto.monto);
@@ -282,6 +411,9 @@ export class PagosService {
         }
 
         if (dto.pago_programado_id) {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT "id" FROM "pagos_programados" WHERE "id" = ${dto.pago_programado_id}::uuid FOR UPDATE`,
+          );
           const programado = await tx.pagos_programados.findUnique({
             where: { id: dto.pago_programado_id },
             select: { id: true, contrato_id: true },
@@ -339,12 +471,16 @@ export class PagosService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "pagos" WHERE "id" = ${id}::uuid FOR UPDATE`,
+        );
         const pago = await tx.pagos.findFirst({
           where: { id },
           select: {
             id: true,
             estado_pago_id: true,
             forma_pago_id: true,
+            pago_programado_id: true,
             estados_pago: { select: { id: true, nombre: true } },
             formas_pago: { select: { id: true, nombre: true } },
           },
@@ -355,12 +491,20 @@ export class PagosService {
             'El pago no tiene estado o forma de pago válidos',
           );
         }
+        if (pago.pago_programado_id) {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT "id" FROM "pagos_programados" WHERE "id" = ${pago.pago_programado_id}::uuid FOR UPDATE`,
+          );
+        }
 
         const siguienteNombre = this.resolveNextState(
           pago.estados_pago.nombre,
           dto.accion,
           usuario.roles.nombre,
         );
+        if (siguienteNombre === ESTADO_RECHAZADO && !dto.comentario?.trim()) {
+          throw new BadRequestException('El rechazo requiere un motivo');
+        }
         const siguiente = await tx.estados_pago.findUnique({
           where: { nombre: siguienteNombre },
           select: { id: true, nombre: true },
@@ -483,7 +627,7 @@ export class PagosService {
       );
     }
     const evidencias = await tx.evidencias_pago.count({
-      where: { pago_id: pagoId, tipo_evidencia_id: tipo.id },
+      where: { pago_id: pagoId, tipo_evidencia_id: tipo.id, vigente: true },
     });
     if (evidencias === 0) {
       throw new BadRequestException(

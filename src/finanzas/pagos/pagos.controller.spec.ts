@@ -166,6 +166,7 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
     evidences = [];
 
     tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: ids.payment }]),
       contratos: {
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === ids.contract || where.id === ids.otherContract
@@ -692,6 +693,11 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
 
   it('allows financial rejection at the initial review and keeps cancellation unreachable', async () => {
     const token = await tokenFor(ids.financial);
+    await request(app.getHttpServer())
+      .patch(`/api/finanzas/pagos/${ids.otherPayment}/estado`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ accion: 'rechazar' })
+      .expect(400);
     await request(app.getHttpServer())
       .patch(`/api/finanzas/pagos/${ids.otherPayment}/estado`)
       .set('Authorization', `Bearer ${token}`)

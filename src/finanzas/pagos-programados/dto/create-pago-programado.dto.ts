@@ -7,7 +7,6 @@ import {
   IsUUID,
   Matches,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';

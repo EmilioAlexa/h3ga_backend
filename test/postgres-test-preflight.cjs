@@ -39,6 +39,20 @@ async function main() {
         (SELECT COUNT(*)::int FROM servicios WHERE nombre LIKE 'I3E2E-%') AS services,
         (SELECT COUNT(*)::int FROM estados_contratos WHERE nombre LIKE 'I3E2E-%') AS contract_states
     `);
+    const paymentArtifacts = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM usuarios WHERE correo_electronico LIKE 'paye2e-%') AS users,
+        (SELECT COUNT(*)::int FROM clientes WHERE apellido_paterno LIKE 'PAYE2E-%') AS clients,
+        (SELECT COUNT(*)::int FROM contratos WHERE folio LIKE 'PAYE2E-%') AS contracts,
+        (SELECT COUNT(*)::int FROM pagos p JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS payments,
+        (SELECT COUNT(*)::int FROM pagos_programados p JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS scheduled,
+        (SELECT COUNT(*)::int FROM evidencias_pago e JOIN pagos p ON p.id=e.pago_id JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS evidences,
+        (SELECT COUNT(*)::int FROM comisiones x JOIN pagos p ON p.id=x.pago_id JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS commissions,
+        (SELECT COUNT(*)::int FROM formas_pago WHERE nombre LIKE 'PAYE2E-%') AS methods,
+        (SELECT COUNT(*)::int FROM tipos_cobro WHERE nombre LIKE 'PAYE2E-%') AS collection_types,
+        (SELECT COUNT(*)::int FROM servicios WHERE nombre LIKE 'PAYE2E-%') AS services,
+        (SELECT COUNT(*)::int FROM estados_contratos WHERE nombre LIKE 'PAYE2E-%') AS contract_states
+    `);
     console.log(JSON.stringify({
       target,
       actual,
@@ -50,6 +64,7 @@ async function main() {
       folio_schema: folioSchema.rows[0],
       test_counters: testCounters,
       test_artifacts: artifacts.rows[0],
+      payment_test_artifacts: paymentArtifacts.rows[0],
     }, null, 2));
   } finally {
     await pool.end();

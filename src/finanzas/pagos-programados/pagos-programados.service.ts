@@ -11,6 +11,7 @@ import { CreatePagoProgramadoDto } from './dto/create-pago-programado.dto';
 import { ChangeEstadoPagoProgramadoDto } from './dto/change-estado-pago-programado.dto';
 import { QueryPagosProgramadosDto } from './dto/query-pagos-programados.dto';
 import { UpdatePagoProgramadoDto } from './dto/update-pago-programado.dto';
+import { scheduledPaymentBalance, ScheduledPaymentBalanceInput } from './scheduled-payment-balance';
 
 type UsuarioAutenticado = {
   id: string;
@@ -54,6 +55,7 @@ const programadoSelect = {
       monto: true,
       fecha_pago: true,
       estado_pago_id: true,
+      estados_pago: { select: { nombre: true } },
     },
     orderBy: { fecha_registro: 'desc' as const },
   },
@@ -105,7 +107,7 @@ export class PagosProgramadosService {
     ]);
 
     return {
-      data,
+      data: data.map((row) => this.withBalance(row)),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -121,7 +123,7 @@ export class PagosProgramadosService {
       select: programadoSelect,
     });
     if (!programado) throw new NotFoundException('Pago programado no encontrado');
-    return programado;
+    return this.withBalance(programado);
   }
 
   async create(dto: CreatePagoProgramadoDto, usuario: UsuarioAutenticado) {
@@ -133,12 +135,12 @@ export class PagosProgramadosService {
       const [contrato, tipo] = await Promise.all([
         this.prisma.contratos.findUnique({
           where: { id: dto.contrato_id },
-          select: { id: true, asesor_id: true },
+          select: { id: true, asesor_id: true, servicios: { select: { codigo_folio: true } } },
         }),
         dto.tipo_cobro_id
           ? this.prisma.tipos_cobro.findUnique({
               where: { id: dto.tipo_cobro_id },
-              select: { id: true, activo: true },
+              select: { id: true, activo: true, nombre: true },
             })
           : Promise.resolve(null),
       ]);
@@ -148,7 +150,8 @@ export class PagosProgramadosService {
       if (dto.tipo_cobro_id && (!tipo || !tipo.activo)) {
         throw new BadRequestException('El tipo de cobro no existe o está inactivo');
       }
-      return await this.prisma.pagos_programados.create({
+      this.ensurePenaltyRules(tipo?.nombre, contrato.servicios.codigo_folio, dto.monto_esperado, dto.fecha_esperada);
+      const created = await this.prisma.pagos_programados.create({
         data: {
           contrato_id: contrato.id,
           tipo_cobro_id: dto.tipo_cobro_id ?? null,
@@ -160,6 +163,7 @@ export class PagosProgramadosService {
         },
         select: programadoSelect,
       });
+      return this.withBalance(created);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -179,12 +183,24 @@ export class PagosProgramadosService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "pagos_programados" WHERE "id" = ${id}::uuid FOR UPDATE`,
+        );
         const actual = await tx.pagos_programados.findUnique({
           where: { id },
-          select: { id: true, contrato_id: true, contratos: { select: { asesor_id: true } } },
+          select: {
+            id: true, contrato_id: true, tipo_cobro_id: true, monto_esperado: true, fecha_esperada: true,
+            contratos: { select: { asesor_id: true, servicios: { select: { codigo_folio: true } } } },
+          },
         });
         if (!actual) throw new NotFoundException('Pago programado no encontrado');
         this.ensureContractScope(actual.contratos.asesor_id, usuario);
+        const validatedCount = await tx.pagos.count({
+          where: { pago_programado_id: id, estados_pago: { is: { nombre: 'Validado' } } },
+        });
+        if (validatedCount > 0) {
+          throw new ConflictException('No se puede editar una obligación con abonos validados');
+        }
         if (dto.contrato_id && dto.contrato_id !== actual.contrato_id) {
           throw new BadRequestException('No se puede cambiar el contrato asociado');
         }
@@ -192,12 +208,22 @@ export class PagosProgramadosService {
         if (dto.tipo_cobro_id) {
           const tipo = await tx.tipos_cobro.findUnique({
             where: { id: dto.tipo_cobro_id },
-            select: { id: true, activo: true },
+            select: { id: true, activo: true, nombre: true },
           });
           if (!tipo || !tipo.activo) {
             throw new BadRequestException('El tipo de cobro no existe o está inactivo');
           }
         }
+        const nextTypeId = dto.tipo_cobro_id !== undefined ? dto.tipo_cobro_id : actual.tipo_cobro_id;
+        const nextType = nextTypeId
+          ? await tx.tipos_cobro.findUnique({ where: { id: nextTypeId }, select: { nombre: true } })
+          : null;
+        this.ensurePenaltyRules(
+          nextType?.nombre,
+          actual.contratos.servicios.codigo_folio,
+          dto.monto_esperado !== undefined ? dto.monto_esperado : actual.monto_esperado,
+          dto.fecha_esperada !== undefined ? dto.fecha_esperada : actual.fecha_esperada,
+        );
         const data: Prisma.pagos_programadosUpdateInput = {};
         if (dto.numero_pago !== undefined) data.numero_pago = dto.numero_pago;
         if (dto.tipo_cobro_id !== undefined) {
@@ -209,11 +235,12 @@ export class PagosProgramadosService {
         if (dto.fecha_vencimiento !== undefined) data.fecha_vencimiento = dto.fecha_vencimiento;
         if (dto.monto_esperado !== undefined) data.monto_esperado = this.toDecimal(dto.monto_esperado);
         if (dto.periodo !== undefined) data.periodo = dto.periodo;
-        return await tx.pagos_programados.update({
+        const updated = await tx.pagos_programados.update({
           where: { id },
           data,
           select: programadoSelect,
         });
+        return this.withBalance(updated);
       });
     } catch (error) {
       this.handlePrismaError(error);
@@ -236,11 +263,12 @@ export class PagosProgramadosService {
     });
     if (!estado) throw new BadRequestException('El estado de pago programado no existe');
     try {
-      return await this.prisma.pagos_programados.update({
+      const updated = await this.prisma.pagos_programados.update({
         where: { id },
         data: { estado_id: estado.id },
         select: programadoSelect,
       });
+      return this.withBalance(updated);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -250,6 +278,10 @@ export class PagosProgramadosService {
     if (!ROLES.includes(usuario?.roles?.nombre)) {
       throw new ForbiddenException('No tienes permiso para consultar pagos programados');
     }
+  }
+
+  private withBalance<T extends ScheduledPaymentBalanceInput>(row: T) {
+    return { ...row, ...scheduledPaymentBalance(row) };
   }
 
   private ensureContractScope(asesorId: string, usuario: UsuarioAutenticado) {
@@ -267,6 +299,25 @@ export class PagosProgramadosService {
 
   private toDecimal(value?: string | null) {
     return value === undefined || value === null ? null : new Prisma.Decimal(value);
+  }
+
+  private ensurePenaltyRules(
+    typeName: string | undefined,
+    serviceCode: string | null,
+    amount: string | Prisma.Decimal | null | undefined,
+    expectedDate: Date | null | undefined,
+  ) {
+    if (!typeName || this.normalize(typeName) !== 'penalizacion') return;
+    if (serviceCode !== 'APD') {
+      throw new BadRequestException('Las penalizaciones solo corresponden a contratos APD');
+    }
+    if (!amount || !expectedDate) {
+      throw new BadRequestException('Una penalización requiere monto y fecha de cobro');
+    }
+  }
+
+  private normalize(value: string) {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('es-MX');
   }
 
   private handlePrismaError(error: unknown): never {

@@ -1,0 +1,15 @@
+// Fragmento propuesto para incorporar a prisma/schema.prisma DESPUÉS de autorizar
+// la migración 20261118120000_programaciones_apd_extensiones. No forma parte
+// del Prisma Client actual; evita seleccionar columnas aún inexistentes en Test.
+
+enum ClasificacionTopeApd {
+  TOPADO
+  NO_TOPADO
+}
+
+// Añadir dentro de model pagos_programados:
+// justificacion_duplicado             String?
+// motivo_penalizacion                 String?
+// clasificacion_tope_apd              ClasificacionTopeApd?
+// monto_recibido_beneficiario_apd     Decimal? @db.Decimal(12, 2)
+// @@index([contrato_id, fecha_esperada, monto_esperado], map: "ix_programados_coincidencia")
