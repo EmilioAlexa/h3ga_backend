@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -102,8 +103,7 @@ export class ClientesService {
     await this.ensureActiveAdvisor(currentUser);
 
     try {
-      return await this.prisma.clientes.create({
-        data: {
+      const data = {
           nombre: createClienteDto.nombre,
           apellido_paterno: createClienteDto.apellido_paterno,
           apellido_materno: createClienteDto.apellido_materno,
@@ -112,8 +112,28 @@ export class ClientesService {
           curp: createClienteDto.curp,
           rfc: createClienteDto.rfc,
           asesor_id: currentUser.id,
-        },
-        select: clienteDetalleAdministrativoSelect,
+      };
+      if (!createClienteDto.referido_por_cliente_id) {
+        return await this.prisma.clientes.create({ data, select: clienteDetalleAdministrativoSelect });
+      }
+      await this.ensureReferralFeatureReady();
+      return await this.prisma.$transaction(async (tx) => {
+        const referidor = await tx.clientes.findUnique({
+          where: { id: createClienteDto.referido_por_cliente_id! },
+          select: { id: true, asesor_id: true },
+        });
+        if (!referidor || referidor.asesor_id !== currentUser.id) {
+          throw new NotFoundException('Cliente referidor no disponible para el asesor');
+        }
+        const created = await tx.clientes.create({
+          data: { ...data, referido_por_cliente_id: referidor.id },
+          select: clienteDetalleAdministrativoSelect,
+        });
+        await tx.historial_referidor_cliente.create({
+          data: { cliente_id: created.id, referidor_anterior_id: null, referidor_nuevo_id: referidor.id,
+            actor_id: currentUser.id, motivo: 'Asignación inicial al registrar cliente' },
+        });
+        return created;
       });
     } catch (error) {
       this.handlePrismaError(error);
@@ -185,6 +205,50 @@ export class ClientesService {
     });
   }
 
+  async setReferidor(id: string, referidorId: string | null | undefined, motivo: string, currentUser: AuthenticatedUser) {
+    if (!['administrador', 'administrador financiero'].includes(currentUser.roles.nombre)) {
+      throw new ForbiddenException('Solo administración puede cambiar el referidor');
+    }
+    if (referidorId === undefined) throw new BadRequestException('Debe indicar referidor_cliente_id o null');
+    if (referidorId === id) throw new BadRequestException('Un cliente no puede referirse a sí mismo');
+    await this.ensureReferralFeatureReady();
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT "id" FROM "clientes" WHERE "id" = ${id}::uuid FOR UPDATE`,
+      );
+      if (!locked.length) throw new NotFoundException('Cliente no encontrado');
+      const current = await tx.clientes.findUniqueOrThrow({ where: { id }, select: { referido_por_cliente_id: true } });
+      if (current.referido_por_cliente_id === referidorId) throw new ConflictException('El referidor ya tiene ese valor');
+      if (referidorId && !await tx.clientes.findUnique({ where: { id: referidorId }, select: { id: true } })) {
+        throw new NotFoundException('Cliente referidor no encontrado');
+      }
+      const updated = await tx.clientes.update({
+        where: { id }, data: { referido_por_cliente_id: referidorId },
+        select: { ...clienteDetalleAdministrativoSelect, referido_por_cliente_id: true },
+      });
+      await tx.historial_referidor_cliente.create({
+        data: { cliente_id: id, referidor_anterior_id: current.referido_por_cliente_id,
+          referidor_nuevo_id: referidorId, actor_id: currentUser.id, motivo },
+      });
+      return updated;
+    });
+  }
+
+  async historialReferidor(id: string, currentUser: AuthenticatedUser) {
+    if (!['administrador', 'administrador financiero'].includes(currentUser.roles.nombre)) {
+      throw new ForbiddenException('Solo administración puede consultar este historial');
+    }
+    await this.ensureReferralFeatureReady();
+    if (!await this.prisma.clientes.findUnique({ where: { id }, select: { id: true } })) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
+    return this.prisma.historial_referidor_cliente.findMany({
+      where: { cliente_id: id }, orderBy: [{ fecha_cambio: 'desc' }, { id: 'desc' }],
+      select: { id: true, referidor_anterior_id: true, referidor_nuevo_id: true,
+        actor_id: true, motivo: true, fecha_cambio: true },
+    });
+  }
+
   private ensureCanRead(currentUser: AuthenticatedUser): void {
     if (
       !['administrador', 'administrador financiero', 'asesor'].includes(
@@ -193,6 +257,13 @@ export class ClientesService {
     ) {
       throw new ForbiddenException('No tienes acceso a clientes');
     }
+  }
+
+  private async ensureReferralFeatureReady(): Promise<void> {
+    const rows = await this.prisma.$queryRaw<Array<{ ready: boolean }>>(
+      Prisma.sql`SELECT to_regclass('public.historial_referidor_cliente') IS NOT NULL AS ready`,
+    );
+    if (!rows[0]?.ready) throw new ConflictException('La relación de referidores requiere la migración pendiente');
   }
 
   private ensureCanUpdate(currentUser: AuthenticatedUser): void {

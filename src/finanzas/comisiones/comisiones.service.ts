@@ -56,7 +56,7 @@ export class ComisionesService {
 
   async saveConfiguracion(contratoId: string, dto: SaveConfiguracionDispersionDto, user: UsuarioAutenticado) {
     this.ensureAdmin(user);
-    const contract = await this.prisma.contratos.findUnique({ where: { id: contratoId }, select: { id: true, asesor_id: true, servicios: { select: { codigo_folio: true } } } });
+    const contract = await this.prisma.contratos.findUnique({ where: { id: contratoId }, select: { id: true, asesor_id: true, cliente_id: true, servicios: { select: { codigo_folio: true } } } });
     if (!contract) throw new NotFoundException('Contrato no encontrado');
     const percentages = dto.configuracion.map(row => new Prisma.Decimal(row.valor));
     const total = percentages.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
@@ -70,13 +70,22 @@ export class ComisionesService {
     if (imssRow?.receptor_dispersion_id) throw new BadRequestException('IMSS no requiere receptor individual');
     for (const row of dto.configuracion) {
       const name = concepts.find(c => c.id === row.concepto_id)?.nombre;
-      if (name === 'Referidor') throw new ConflictException('Referidor requiere una relación identificable entre clientes; no se admite asignación manual');
+      if (name === 'Referidor' && row.receptor_dispersion_id) throw new BadRequestException('Referidor se obtiene del cliente titular; no admite receptor arbitrario');
       if (name === 'Asesor' && !row.receptor_dispersion_id) throw new BadRequestException('Asesor requiere el receptor asignado al contrato');
       if (name === 'Otro' && !row.receptor_dispersion_id) throw new BadRequestException('Otro requiere una descripción o nombre del receptor');
-      if (!['Asesor', 'Director', 'Gerente', 'Bróker', 'IMSS', 'Otro'].includes(name ?? '')) throw new BadRequestException('El concepto no tiene una política de distribución autorizada');
+      if (!['Asesor', 'Director', 'Gerente', 'Bróker', 'IMSS', 'Referidor', 'Otro'].includes(name ?? '')) throw new BadRequestException('El concepto no tiene una política de distribución autorizada');
+    }
+    if (dto.configuracion.some(row => concepts.find(c => c.id === row.concepto_id)?.nombre === 'Referidor')) {
+      await this.ensureReferralFeatureReady(this.prisma);
     }
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "contratos" WHERE "id" = ${contratoId}::uuid FOR UPDATE`);
+      if (dto.configuracion.some(row => concepts.find(c => c.id === row.concepto_id)?.nombre === 'Referidor')) {
+        const titular = await tx.$queryRaw<Array<{ referido_por_cliente_id: string | null }>>(
+          Prisma.sql`SELECT "referido_por_cliente_id" FROM "clientes" WHERE "id" = ${contract.cliente_id}::uuid FOR SHARE`,
+        );
+        if (!titular[0]?.referido_por_cliente_id) throw new ConflictException('El cliente titular no tiene un referidor identificado por UUID');
+      }
       const receiverIds = [...new Set(dto.configuracion.map(row => row.receptor_dispersion_id).filter((id): id is string => !!id))].sort();
       for (const receiverId of receiverIds) {
         await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "receptores_dispersion" WHERE "id" = ${receiverId}::uuid FOR UPDATE`);
@@ -131,7 +140,16 @@ export class ComisionesService {
       where.conceptos_dispersion = { nombre: 'Asesor' };
       where.AND = [{ pagos: { contratos: { asesor_id: user.id } } }];
     }
-    const [data, total] = await Promise.all([this.prisma.comisiones.findMany({ where, skip: (query.page - 1) * query.limit, take: query.limit, orderBy: { fecha_calculo: 'desc' }, include: { conceptos_dispersion: true, estados_comisiones: true, pagos: { select: { id: true, fecha_pago: true, contratos: { select: { id: true, folio: true, asesor_id: true } } } } } }), this.prisma.comisiones.count({ where })]);
+    const referralReady = await this.referralFeatureReady(this.prisma);
+    const [data, total] = await Promise.all([this.prisma.comisiones.findMany({ where, skip: (query.page - 1) * query.limit, take: query.limit, orderBy: { fecha_calculo: 'desc' }, select: {
+      id: true, pago_id: true, monto_base: true, monto_comision: true, estado_id: true, fecha_calculo: true,
+      observaciones: true, beneficiario_id: true, concepto_id: true, contrato_dispersion_detalle_id: true,
+      detalle_prenomina_id: true, receptor_dispersion_id: true, receptor_nombre_snapshot: true,
+      ...(referralReady ? { receptor_cliente_id: true as const } : {}),
+      tipo_calculo: true, valor_aplicado: true,
+      conceptos_dispersion: true, estados_comisiones: true,
+      pagos: { select: { id: true, fecha_pago: true, contratos: { select: { id: true, folio: true, asesor_id: true } } } },
+    } }), this.prisma.comisiones.count({ where })]);
     return { data, page: query.page, limit: query.limit, total };
   }
 
@@ -160,7 +178,8 @@ export class ComisionesService {
         }
         const commission = await tx.comisiones.findUnique({
           where: { id },
-          include: {
+          select: {
+            id: true, estado_id: true,
             estados_comisiones: { select: { nombre: true } },
             conceptos_dispersion: { select: { nombre: true } },
             receptores_dispersion: { select: { activo: true, usuario_id: true, usuarios_receptor: { select: { activo: true } } } },
@@ -250,13 +269,27 @@ export class ComisionesService {
       where: { id: paymentId },
       include: {
         estados_pago: { select: { nombre: true } },
-        contratos: { select: { id: true, asesor_id: true, servicios: { select: { codigo_folio: true } } } },
+        contratos: { select: { id: true, asesor_id: true, cliente_id: true, servicios: { select: { codigo_folio: true } } } },
       },
     });
     if (!payment) throw new NotFoundException('Pago no encontrado');
     if (payment.estados_pago?.nombre !== 'Validado') throw new ConflictException('Solo un pago Validado puede generar comisiones');
     await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "contratos" WHERE "id" = ${payment.contratos.id}::uuid FOR UPDATE`);
     const configs = await tx.contrato_dispersion_detalle.findMany({ where: { contrato_id: payment.contratos.id, activo: true }, include: { conceptos_dispersion: true, receptores_dispersion: { include: { usuarios_receptor: true } } }, orderBy: { orden: 'asc' } });
+    let referidor: { id: string; nombre: string } | null = null;
+    if (configs.some(c => c.conceptos_dispersion.nombre === 'Referidor')) {
+      await this.ensureReferralFeatureReady(tx);
+      const titular = await tx.$queryRaw<Array<{ referido_por_cliente_id: string | null }>>(
+        Prisma.sql`SELECT "referido_por_cliente_id" FROM "clientes" WHERE "id" = ${payment.contratos.cliente_id}::uuid FOR SHARE`,
+      );
+      const referidorId = titular[0]?.referido_por_cliente_id;
+      if (!referidorId) throw new ConflictException('El cliente titular no tiene un referidor identificado por UUID');
+      const rows = await tx.$queryRaw<Array<{ id: string; nombre: string; apellido_paterno: string; apellido_materno: string | null }>>(
+        Prisma.sql`SELECT "id", "nombre", "apellido_paterno", "apellido_materno" FROM "clientes" WHERE "id" = ${referidorId}::uuid FOR SHARE`,
+      );
+      if (!rows.length) throw new ConflictException('El cliente referidor ya no existe');
+      referidor = { id: rows[0].id, nombre: [rows[0].nombre, rows[0].apellido_paterno, rows[0].apellido_materno].filter(Boolean).join(' ') };
+    }
     const imss = configs.find(c => c.conceptos_dispersion.nombre === 'IMSS');
     const imssRequired = ['M10', 'M40', 'M40R'].includes(payment.contratos.servicios.codigo_folio ?? '');
     if (imss && !imssRequired) throw new ConflictException('IMSS no aplica a este contrato');
@@ -272,17 +305,17 @@ export class ComisionesService {
       assigned = assigned.plus(amount);
       const receiver = config.receptores_dispersion;
       const nameOfConcept = config.conceptos_dispersion.nombre;
-      if (nameOfConcept === 'Referidor') throw new ConflictException('Referidor requiere una relación identificable entre clientes');
+      if (nameOfConcept === 'Referidor' && (receiver || !referidor)) throw new ConflictException('Referidor debe proceder de la relación del cliente titular');
       if (receiver && !receiver.activo) throw new ConflictException('La configuración usa un receptor inactivo');
       if (nameOfConcept === 'Asesor' && !receiver) throw new ConflictException('La configuración Asesor no tiene receptor');
       if (nameOfConcept === 'Otro' && !receiver?.nombre_externo?.trim()) throw new ConflictException('Otro requiere descripción del receptor');
       if (nameOfConcept === 'IMSS' && receiver) throw new ConflictException('IMSS no admite receptor individual');
-      if (!['Asesor', 'Director', 'Gerente', 'Bróker', 'IMSS', 'Otro'].includes(nameOfConcept)) throw new ConflictException('Concepto sin política de distribución autorizada');
+      if (!['Asesor', 'Director', 'Gerente', 'Bróker', 'IMSS', 'Referidor', 'Otro'].includes(nameOfConcept)) throw new ConflictException('Concepto sin política de distribución autorizada');
       if (nameOfConcept !== 'Asesor' && receiver?.usuario_id) throw new ConflictException('El receptor manual no puede ser un usuario');
       if (nameOfConcept === 'Asesor' && (receiver?.usuario_id !== payment.contratos.asesor_id || !receiver?.usuarios_receptor?.activo)) throw new ConflictException('El receptor Asesor no coincide con el asesor activo del contrato');
       if (amount.isZero()) continue;
-      const name = receiver?.nombre_externo ?? [receiver?.usuarios_receptor?.nombre, receiver?.usuarios_receptor?.apellido_paterno, receiver?.usuarios_receptor?.apellido_materno].filter(Boolean).join(' ');
-      const created = await tx.comisiones.create({ data: { pago_id: payment.id, monto_base: payment.monto, monto_comision: amount, estado_id: pending.id, concepto_id: config.concepto_id, contrato_dispersion_detalle_id: config.id, beneficiario_id: receiver?.usuario_id ?? null, receptor_dispersion_id: receiver?.id ?? null, receptor_nombre_snapshot: name || null, tipo_calculo: 'porcentaje', valor_aplicado: pct } });
+      const name = nameOfConcept === 'Referidor' ? referidor!.nombre : receiver?.nombre_externo ?? [receiver?.usuarios_receptor?.nombre, receiver?.usuarios_receptor?.apellido_paterno, receiver?.usuarios_receptor?.apellido_materno].filter(Boolean).join(' ');
+      const created = await tx.comisiones.create({ data: { pago_id: payment.id, monto_base: payment.monto, monto_comision: amount, estado_id: pending.id, concepto_id: config.concepto_id, contrato_dispersion_detalle_id: config.id, beneficiario_id: receiver?.usuario_id ?? null, receptor_dispersion_id: receiver?.id ?? null, ...(nameOfConcept === 'Referidor' ? { receptor_cliente_id: referidor!.id } : {}), receptor_nombre_snapshot: name || null, tipo_calculo: 'porcentaje', valor_aplicado: pct }, select: { id: true } });
       await tx.historial_estados_comisiones.create({ data: { comision_id: created.id, estado_anterior_id: null, estado_nuevo_id: pending.id, cambiado_por: actorId, comentario: 'Comisión generada al validar el pago' } });
     }
     if (configuredTotal.greaterThan(100)) throw new ConflictException('La configuración supera el 100%');
@@ -290,11 +323,20 @@ export class ComisionesService {
     const remainderPct = new Prisma.Decimal(100).minus(configuredTotal);
     if (residual.lessThan(0)) throw new ConflictException('La configuración genera una distribución superior al pago');
     if (residual.greaterThan(0) || remainderPct.greaterThan(0)) {
-      const created = await tx.comisiones.create({ data: { pago_id: payment.id, monto_base: payment.monto, monto_comision: residual, estado_id: pending.id, concepto_id: company.id, tipo_calculo: 'porcentaje', valor_aplicado: remainderPct } });
+      const created = await tx.comisiones.create({ data: { pago_id: payment.id, monto_base: payment.monto, monto_comision: residual, estado_id: pending.id, concepto_id: company.id, tipo_calculo: 'porcentaje', valor_aplicado: remainderPct }, select: { id: true } });
       await tx.historial_estados_comisiones.create({ data: { comision_id: created.id, estado_anterior_id: null, estado_nuevo_id: pending.id, cambiado_por: actorId, comentario: 'Remanente de empresa generado al validar el pago' } });
     }
   }
 
   private ensureAdmin(user: UsuarioAutenticado) { if (!user.activo || !ADMIN.includes(user.roles.nombre)) throw new ForbiddenException('Solo administración puede gestionar comisiones y dispersión'); }
+  private async referralFeatureReady(db: PrismaService | Prisma.TransactionClient): Promise<boolean> {
+    const rows = await db.$queryRaw<Array<{ ready: boolean }>>(
+      Prisma.sql`SELECT to_regclass('public.historial_referidor_cliente') IS NOT NULL AS ready`,
+    );
+    return rows[0]?.ready === true;
+  }
+  private async ensureReferralFeatureReady(db: PrismaService | Prisma.TransactionClient) {
+    if (!await this.referralFeatureReady(db)) throw new ConflictException('La relación de referidores requiere la migración pendiente');
+  }
   private handlePrismaError(error: unknown): never { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Ya existe un receptor o comisión con esa clave'); if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') throw new NotFoundException('Registro relacionado no encontrado'); throw error; }
 }

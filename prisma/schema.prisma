@@ -17,6 +17,7 @@ model clientes {
   apellido_paterno                  String
   apellido_materno                  String?
   referido_por                      String?
+  referido_por_cliente_id           String?                             @db.Uuid
   telefono                          String?
   asesor_id                         String?                             @db.Uuid
   fecha_ingreso                     DateTime?                           @db.Date
@@ -50,6 +51,13 @@ model clientes {
   ley_probable                      ley_probable?                       @relation(fields: [ley_probable_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_ley_probable")
   regimen_principal                 regimen_principal?                  @relation(fields: [regimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_regimen")
   contratos                         contratos[]
+  referidor                         clientes?                            @relation("clientes_referidor", fields: [referido_por_cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_referido_por_cliente")
+  clientes_referidos                clientes[]                           @relation("clientes_referidor")
+  comisiones_como_referidor         comisiones[]                         @relation("comisiones_receptor_cliente")
+  detalle_prenomina_como_referidor  detalle_prenomina[]                  @relation("detalle_prenomina_receptor_cliente")
+  historial_referidor_titular       historial_referidor_cliente[]       @relation("historial_referidor_titular")
+  historial_referidor_anterior      historial_referidor_cliente[]       @relation("historial_referidor_anterior")
+  historial_referidor_nuevo         historial_referidor_cliente[]       @relation("historial_referidor_nuevo")
   correcciones_cliente              correcciones_cliente[]
   credenciales_correo_cliente       credenciales_correo_cliente?
   diagnostico_especializado         diagnostico_especializado?
@@ -63,6 +71,8 @@ model clientes {
   periodos_inconsistencias          periodos_inconsistencias[]
   tareas_auxiliar                   tareas_auxiliar[]
   servicios_complementarios_tramite servicios_complementarios_tramite[]
+
+  @@index([referido_por_cliente_id], map: "ix_clientes_referido_por_cliente_id")
 }
 
 model comisiones {
@@ -78,7 +88,8 @@ model comisiones {
   contrato_dispersion_detalle_id String?                        @db.Uuid
   detalle_prenomina_id           String?                        @db.Uuid
   receptor_dispersion_id         String?                        @db.Uuid
-  receptor_nombre_snapshot       String?                        @db.VarChar(150)
+  receptor_cliente_id            String?                        @db.Uuid
+  receptor_nombre_snapshot       String?
   tipo_calculo                   tipo_calculo_dispersion
   valor_aplicado                 Decimal                        @db.Decimal(12, 2)
   historial_estados_comisiones   historial_estados_comisiones[]
@@ -87,6 +98,7 @@ model comisiones {
   contrato_dispersion_detalle    contrato_dispersion_detalle?   @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
   detalle_prenomina              detalle_prenomina?             @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
   receptores_dispersion          receptores_dispersion?         @relation(fields: [receptor_dispersion_id], references: [id], onUpdate: NoAction, map: "fk_comisiones_receptor_dispersion")
+  clientes_receptor              clientes?                      @relation("comisiones_receptor_cliente", fields: [receptor_cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_receptor_cliente")
   usuarios                       usuarios?                      @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_asesor")
   estados_comisiones             estados_comisiones             @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_estado")
   pagos                          pagos                          @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comisiones_pago")
@@ -96,6 +108,7 @@ model comisiones {
   @@index([concepto_id], map: "ix_comisiones_concepto")
   @@index([detalle_prenomina_id], map: "ix_comisiones_prenomina")
   @@index([receptor_dispersion_id], map: "ix_comisiones_receptor_dispersion")
+  @@index([receptor_cliente_id], map: "ix_comisiones_receptor_cliente_id")
 }
 
 /// Confirmación privada y única de una dispersión total. El SQL también define checks de referencia y comprobante.
@@ -185,15 +198,18 @@ model detalle_prenomina {
   beneficiario_id          String?                @db.Uuid
   concepto_id              Int?                   @db.SmallInt
   receptor_dispersion_id   String?                @db.Uuid
+  receptor_cliente_id      String?                @db.Uuid
   receptor_nombre_snapshot String?                @db.VarChar(150)
   comisiones               comisiones[]
   prenomina                prenomina              @relation(fields: [prenomina_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_detalle_prenomina")
   usuarios                 usuarios?              @relation(fields: [beneficiario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_asesor")
   conceptos_dispersion     conceptos_dispersion?  @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_concepto")
   receptores_dispersion    receptores_dispersion? @relation(fields: [receptor_dispersion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_receptor")
+  clientes_receptor        clientes?              @relation("detalle_prenomina_receptor_cliente", fields: [receptor_cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_detalle_prenomina_receptor_cliente")
 
   @@index([prenomina_id, beneficiario_id], map: "ix_detalle_prenomina_beneficiario")
   @@index([prenomina_id, receptor_dispersion_id], map: "ix_detalle_prenomina_receptor")
+  @@index([receptor_cliente_id], map: "ix_detalle_prenomina_receptor_cliente_id")
 }
 
 model estados_comisiones {
@@ -633,6 +649,7 @@ model usuarios {
   receptores_dispersion_receptor_usuario                                            receptores_dispersion[]               @relation("receptor_dispersion_usuario")
   receptores_dispersion_receptor_creador                                            receptores_dispersion[]               @relation("receptor_dispersion_creador")
   historial_configuracion_dispersion                                                historial_configuracion_dispersion[]
+  historial_referidor_cliente                                                       historial_referidor_cliente[]
   historial_estados_comisiones                                                      historial_estados_comisiones[]
   dispersiones_comision                                                             dispersiones_comision[]              @relation("dispersiones_confirmador")
   historial_estados_corte                                                           historial_estados_corte[]
@@ -1276,6 +1293,25 @@ model historial_configuracion_dispersion {
   usuarios               usuarios  @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_dispersion_usuario")
 
   @@index([contrato_id, fecha_cambio], map: "ix_historial_dispersion_contrato_fecha")
+}
+
+model historial_referidor_cliente {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id             String   @db.Uuid
+  referidor_anterior_id  String?  @db.Uuid
+  referidor_nuevo_id     String?  @db.Uuid
+  actor_id               String   @db.Uuid
+  motivo                 String
+  fecha_cambio           DateTime @default(now()) @db.Timestamptz(6)
+  cliente_titular        clientes @relation("historial_referidor_titular", fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_titular")
+  cliente_anterior       clientes? @relation("historial_referidor_anterior", fields: [referidor_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_anterior")
+  cliente_nuevo          clientes? @relation("historial_referidor_nuevo", fields: [referidor_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_nuevo")
+  usuarios_actor         usuarios @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_actor")
+
+  @@index([cliente_id, fecha_cambio], map: "ix_historial_referidor_cliente_fecha")
+  @@index([referidor_anterior_id], map: "ix_historial_referidor_anterior")
+  @@index([referidor_nuevo_id], map: "ix_historial_referidor_nuevo")
+  @@index([actor_id], map: "ix_historial_referidor_actor")
 }
 
 model configuracion_comisiones_obsoleta {

@@ -182,3 +182,6 @@ docs/
 
 # Seed exclusivo para pruebas locales
 /prisma/seed.local.ts
+
+# Propuestas locales de Prisma
+/prisma/proposals/

@@ -24,7 +24,7 @@ export class ComisionesController {
 
   @Post('receptores-dispersion')
   @Roles('administrador', 'administrador financiero')
-  @ApiOperation({ summary: 'Registrar receptor Asesor o nombre manual de Director, Gerente y Bróker', description: 'Referidor requiere una relación identificable entre clientes; IMSS y Empresa no usan receptor individual. Para un destino manual sin nombre, omita receptor_dispersion_id en la configuración.' })
+  @ApiOperation({ summary: 'Registrar receptor Asesor o nombre manual de Director, Gerente, Bróker y Otro', description: 'Referidor se obtiene por UUID del cliente relacionado y no admite receptor manual. Otro exige nombre o descripción. IMSS y Empresa no usan receptor individual.' })
   createReceiver(@Body() dto: CreateReceptorDispersionDto, @CurrentUser() user: UsuarioAutenticado) { return this.service.createReceptor(dto, user); }
 
   @Get('receptores-dispersion')
@@ -41,10 +41,10 @@ export class ComisionesController {
 
   @Put('contratos/:id/comisiones')
   @Roles('administrador', 'administrador financiero')
-  @ApiOperation({ summary: 'Guardar porcentajes por contrato', description: 'Porcentajes Decimal de 0 a 100 en pasos de 0.5. Asesor exige receptor igual a contratos.asesor_id. Director, Gerente y Bróker admiten receptor manual opcional. M10, M40 y M40R exigen IMSS con porcentaje explícito positivo y sin receptor; APD lo rechaza. Referidor queda pendiente de relación verificable. La operación bloquea contrato y receptores, audita y solo afecta pagos futuros.' })
+  @ApiOperation({ summary: 'Guardar porcentajes por contrato', description: 'Porcentajes Decimal de 0 a 100 en pasos de 0.5. Asesor exige receptor contractual; Director, Gerente y Bróker admiten nombre manual opcional. Referidor se toma del cliente titular por UUID y no acepta receptor arbitrario. Otro exige receptor manual con nombre no vacío. M10, M40 y M40R exigen IMSS positivo sin receptor; APD lo rechaza. Solo afecta pagos futuros.' })
   @ApiOkResponse({ description: 'Configuración activa con valores Decimal serializados como string.' })
   @ApiBadRequestResponse({ description: 'Porcentaje, suma, concepto o receptor incompatibles.' })
-  @ApiConflictResponse({ description: 'Referidor sin relación verificable o configuración no segura.' })
+  @ApiConflictResponse({ description: 'Cliente sin referidor verificable o configuración no segura.' })
   @ApiUnauthorizedResponse({ description: 'Falta JWT válido.' })
   @ApiForbiddenResponse({ description: 'Solo administración puede editar la configuración.' })
   @ApiNotFoundResponse({ description: 'Contrato inexistente.' })

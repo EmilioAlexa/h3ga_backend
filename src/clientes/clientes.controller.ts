@@ -29,6 +29,7 @@ import { RolesGuard } from '../roles/guards/roles.guard';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
 import { SetClientePausadoDto } from './dto/set-cliente-pausado.dto';
+import { SetClienteReferidorDto } from './dto/set-cliente-referidor.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClientesService } from './clientes.service';
 import {
@@ -122,7 +123,7 @@ export class ClientesController {
   @ApiOperation({
     summary: 'Registrar un cliente',
     description:
-      'Solo el asesor autenticado puede registrar clientes; asesor_id se toma del JWT.',
+      'Solo el asesor autenticado puede registrar clientes; asesor_id se toma del JWT. El UUID opcional del referidor debe ser de un cliente asignado al mismo asesor y se audita.',
   })
   @ApiCreatedResponse({
     description: 'Cliente registrado y asignado al asesor autenticado.',
@@ -194,5 +195,27 @@ export class ClientesController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     return this.clientesService.setPaused(id, dto.pausado, currentUser);
+  }
+
+  @Patch(':id/referidor')
+  @Roles('administrador', 'administrador financiero')
+  @ApiOperation({ summary: 'Asignar, cambiar o retirar el cliente referidor', description: 'Operación administrativa con motivo, actor, fecha y valores anterior/nuevo auditados. No cambia el texto histórico referido_por ni snapshots previos.' })
+  @ApiOkResponse({ description: 'Cliente actualizado con referido_por_cliente_id.' })
+  @ApiBadRequestResponse({ description: 'UUID, motivo o autorreferencia inválidos.' })
+  @ApiNotFoundResponse({ description: 'Cliente titular o referidor inexistente.' })
+  @ApiForbiddenResponse({ description: 'Solo administración.' })
+  setReferidor(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetClienteReferidorDto,
+    @CurrentUser() currentUser: AuthenticatedUser) {
+    return this.clientesService.setReferidor(id, dto.referidor_cliente_id, dto.motivo, currentUser);
+  }
+
+  @Get(':id/referidor/historial')
+  @Roles('administrador', 'administrador financiero')
+  @ApiOperation({ summary: 'Consultar historial de asignaciones de referidor de un cliente' })
+  @ApiOkResponse({ description: 'Eventos de asignación, cambio y retiro con actor y fecha.' })
+  @ApiNotFoundResponse({ description: 'Cliente inexistente.' })
+  @ApiForbiddenResponse({ description: 'Solo administración.' })
+  historialReferidor(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() currentUser: AuthenticatedUser) {
+    return this.clientesService.historialReferidor(id, currentUser);
   }
 }

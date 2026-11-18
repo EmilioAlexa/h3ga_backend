@@ -22,8 +22,20 @@ async function main() {
       ORDER BY table_name, column_name`)).rows;
     const historicalTextCount = Number((await client.query(`SELECT count(*)::int AS total
       FROM clientes WHERE nullif(btrim(referido_por), '') IS NOT NULL`)).rows[0].total);
+    const prenominaReceiverConstraint = (await client.query(`SELECT conname, pg_get_constraintdef(oid) AS definition
+      FROM pg_constraint WHERE conrelid = 'detalle_prenomina'::regclass
+      AND conname = 'ck_detalle_prenomina_un_receptor'`)).rows;
+    const prenominaClientColumn = (await client.query(`SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'detalle_prenomina' AND column_name = 'receptor_cliente_id'`)).rows;
+    const testRows = (await client.query(`SELECT
+      (SELECT count(*)::int FROM historial_referidor_cliente) AS historial_referidor,
+      (SELECT count(*)::int FROM prenomina) AS prenominas,
+      (SELECT count(*)::int FROM detalle_prenomina) AS detalles_prenomina,
+      (SELECT count(*)::int FROM comisiones) AS comisiones,
+      (SELECT count(*)::int FROM clientes) AS clientes`)).rows[0];
     await client.query('COMMIT');
-    console.log(JSON.stringify({ identity, concepts, destinationTypes, columns, historicalTextCount }, null, 2));
+    console.log(JSON.stringify({ identity, concepts, destinationTypes, columns, historicalTextCount,
+      prenominaReceiverConstraint, prenominaClientColumn, testRows }, null, 2));
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

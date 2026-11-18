@@ -349,9 +349,9 @@ describe('I3 con PostgreSQL local aislado', () => {
     await request(server()).patch('/api/clientes/ffffffff-ffff-4fff-8fff-ffffffffffff/estado-operativo')
       .set('Authorization', `Bearer ${adminToken}`).send({ pausado: true }).expect(404);
     await request(server()).patch(route).set('Authorization', `Bearer ${adminToken}`).send({ pausado: true }).expect(200);
-    expect((await prisma.clientes.findUnique({ where: { id: clientId } }))?.pausado).toBe(true);
+    expect((await prisma.clientes.findUnique({ where: { id: clientId }, select: { pausado: true } }))?.pausado).toBe(true);
     await request(server()).patch(route).set('Authorization', `Bearer ${financialToken}`).send({ pausado: false }).expect(200);
-    expect((await prisma.clientes.findUnique({ where: { id: clientId } }))?.pausado).toBe(false);
+    expect((await prisma.clientes.findUnique({ where: { id: clientId }, select: { pausado: true } }))?.pausado).toBe(false);
     await request(server()).patch(route).set('Authorization', `Bearer ${financialToken}`).send({ pausado: true }).expect(200);
     await request(server()).patch(route).set('Authorization', `Bearer ${adminToken}`).send({ pausado: false }).expect(200);
   });
@@ -384,7 +384,7 @@ describe('I3 con PostgreSQL local aislado', () => {
     const locked = new Promise<void>((resolve) => { signalLocked = resolve; });
     const owner = prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM clientes WHERE id = ${clientId}::uuid FOR UPDATE`;
-      await tx.clientes.update({ where: { id: clientId }, data: { pausado: true } });
+      await tx.clientes.update({ where: { id: clientId }, data: { pausado: true }, select: { id: true } });
       signalLocked();
       await released;
     }, { timeout: 10_000 });

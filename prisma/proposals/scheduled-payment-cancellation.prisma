@@ -1,9 +1,0 @@
-// Fragmento para prisma/schema.prisma después de una autorización SEPARADA.
-// La migración 20261118150000_cancelacion_programados_auditoria no está aplicada.
-// En model pagos_programados:
-// cancelado_por       String?   @db.Uuid
-// cancelado_en        DateTime? @db.Timestamptz(6)
-// motivo_cancelacion String?
-// usuario_cancelador  usuarios? @relation("programado_cancelado_por", fields: [cancelado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_programados_cancelado_por")
-// En model usuarios:
-// pagos_programados_cancelados pagos_programados[] @relation("programado_cancelado_por")

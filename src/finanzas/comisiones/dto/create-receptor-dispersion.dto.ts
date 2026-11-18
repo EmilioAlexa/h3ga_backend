@@ -23,7 +23,7 @@ export class CreateReceptorDispersionDto {
   @IsUUID()
   usuario_id?: string;
 
-  @ApiPropertyOptional({ maxLength: 150, description: 'Nombre manual de Director, Gerente o Bróker. La ausencia de nombre se expresa omitiendo el receptor en la configuración.' })
+  @ApiPropertyOptional({ maxLength: 150, description: 'Nombre manual de Director, Gerente, Bróker u Otro. Otro lo exige; para los demás, la ausencia de nombre se expresa omitiendo el receptor en la configuración.' })
   @IsOptional()
   @IsString()
   @MaxLength(150)
