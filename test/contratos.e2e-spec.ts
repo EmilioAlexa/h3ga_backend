@@ -101,11 +101,14 @@ describe('Contratos API (e2e)', () => {
     ];
 
     const transaction = {
-      $queryRaw: jest.fn(async (query: { values: string[] }) =>
-        query.values[0] === ids.customer
-          ? [{ id: ids.customer, pausado: false }]
-          : [],
-      ),
+      $queryRaw: jest.fn(async (query: { strings: string[]; values: string[] }) => {
+        const sql = query.strings.join('');
+        if (sql.includes('FOR UPDATE')) return query.values[0] === ids.customer
+          ? [{ id: ids.customer, pausado: false }] : [];
+        if (sql.includes('clock_timestamp')) return [{ instante: new Date('2026-11-09T12:00:00Z'), anio: 2026 }];
+        if (sql.includes('INSERT INTO')) return [{ ultimo: 1n }];
+        return [];
+      }),
       clientes: {
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === ids.customer ? { id: ids.customer } : null,
@@ -113,7 +116,7 @@ describe('Contratos API (e2e)', () => {
       },
       servicios: {
         findUnique: jest.fn(async ({ where }: any) =>
-          where.id === 1 && where.activo ? { id: 1 } : null,
+          where.id === 1 && where.activo ? { id: 1, codigo_folio: 'APD' } : null,
         ),
       },
       estados_contratos: {
@@ -219,7 +222,6 @@ describe('Contratos API (e2e)', () => {
       .send({
         cliente_id: ids.customer,
         servicio_id: 1,
-        folio: 'E2E-ADVISOR-CREATE',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })
@@ -237,7 +239,6 @@ describe('Contratos API (e2e)', () => {
         cliente_id: ids.customer,
         servicio_id: 1,
         asesor_id: ids.otherAdvisor,
-        folio: 'E2E-ADMIN-CREATE',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })
@@ -250,7 +251,6 @@ describe('Contratos API (e2e)', () => {
       .send({
         cliente_id: ids.customer,
         servicio_id: 1,
-        folio: 'E2E-ADMIN-NO-ADVISOR',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })
@@ -266,7 +266,6 @@ describe('Contratos API (e2e)', () => {
         cliente_id: ids.customer,
         servicio_id: 1,
         asesor_id: ids.otherAdvisor,
-        folio: 'E2E-IMPERSONATION',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })

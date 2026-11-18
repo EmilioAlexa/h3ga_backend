@@ -1,13 +1,11 @@
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsDate,
   IsInt,
-  MinLength,
   IsOptional,
   IsString,
   IsUUID,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -36,19 +34,6 @@ export class CreateContratoDto {
   @IsOptional()
   @IsUUID()
   asesor_id?: string;
-
-  @ApiProperty({
-    description: 'Folio provisional del contrato; se recortan espacios y no puede quedar vacío. La generación backend queda pendiente de la estrategia de consecutivo.',
-    minLength: 1,
-    maxLength: 50,
-  })
-  @IsString()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @MinLength(1)
-  @MaxLength(50)
-  folio: string;
 
   @ApiProperty({
     description: 'Fecha del contrato en formato ISO 8601.',

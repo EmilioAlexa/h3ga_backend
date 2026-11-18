@@ -154,16 +154,14 @@ export class ContratosService {
           Prisma.sql`SELECT "id", "pausado" FROM "clientes" WHERE "id" = ${dto.cliente_id}::uuid FOR UPDATE`,
         );
         const cliente = clientes[0];
-        const [servicio, estado] = await Promise.all([
-          tx.servicios.findUnique({
-            where: { id: dto.servicio_id, activo: true },
-            select: { id: true },
-          }),
-          tx.estados_contratos.findUnique({
-            where: { id: dto.estado_contrato_id },
-            select: { id: true },
-          }),
-        ]);
+        const servicio = await tx.servicios.findUnique({
+          where: { id: dto.servicio_id, activo: true },
+          select: { id: true, codigo_folio: true },
+        });
+        const estado = await tx.estados_contratos.findUnique({
+          where: { id: dto.estado_contrato_id },
+          select: { id: true },
+        });
 
         if (!cliente)
           throw new BadRequestException('El cliente indicado no existe');
@@ -174,6 +172,9 @@ export class ContratosService {
           throw new BadRequestException(
             'El servicio indicado no existe o está inactivo',
           );
+        }
+        if (!servicio.codigo_folio || !['APD', 'M10', 'M40', 'M40R'].includes(servicio.codigo_folio)) {
+          throw new ConflictException('El servicio no tiene un codigo de folio aprobado');
         }
         if (!estado) {
           throw new BadRequestException(
@@ -199,13 +200,32 @@ export class ContratosService {
           }
         }
 
-        const folio = dto.folio.trim();
-        const existente = await tx.contratos.findFirst({
-          where: { folio },
-          select: { id: true },
-        });
-        if (existente) {
-          throw new ConflictException('El folio contractual ya existe');
+        const [momento] = await tx.$queryRaw<Array<{ instante: Date; anio: number }>>(
+          Prisma.sql`SELECT instante, EXTRACT(YEAR FROM instante AT TIME ZONE 'America/Cancun')::int AS anio
+                     FROM (SELECT clock_timestamp() AS instante) AS reloj`,
+        );
+        const [reserva] = await tx.$queryRaw<Array<{ ultimo: bigint }>>(
+          Prisma.sql`INSERT INTO "folios_contrato_contadores" ("servicio_id", "anio", "ultimo")
+                     VALUES (${servicio.id}, ${momento.anio}, 1)
+                     ON CONFLICT ("servicio_id", "anio")
+                     DO UPDATE SET "ultimo" = "folios_contrato_contadores"."ultimo" + 1
+                     RETURNING "ultimo"`,
+        );
+        if (reserva.ultimo === 1n) {
+          const historicos = await tx.$queryRaw<Array<{ existe: number }>>(
+            Prisma.sql`SELECT 1 AS existe FROM "contratos"
+                       WHERE "servicio_id" = ${servicio.id}
+                         AND EXTRACT(YEAR FROM "creado_en" AT TIME ZONE 'America/Cancun')::int = ${momento.anio}
+                       LIMIT 1`,
+          );
+          if (historicos.length) {
+            throw new ConflictException('El contador del servicio y anio requiere inicializacion historica');
+          }
+        }
+        const prefijo = servicio.codigo_folio === 'APD' ? '' : servicio.codigo_folio;
+        const folio = `${prefijo}${momento.anio}${reserva.ultimo.toString().padStart(5, '0')}`;
+        if (folio.length > 50) {
+          throw new ConflictException('El consecutivo supera la longitud del folio contractual');
         }
 
         return tx.contratos.create({
@@ -218,10 +238,11 @@ export class ContratosService {
             estado_contrato_id: dto.estado_contrato_id,
             cantidad_pagos: dto.cantidad_pagos,
             observaciones: dto.observaciones,
+            creado_en: momento.instante,
           },
           select: contratoSelect,
         });
-      });
+      }, { maxWait: 10_000, timeout: 20_000 });
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -296,6 +317,9 @@ export class ContratosService {
           'El contrato entra en conflicto con una restricción única de la base de datos',
         );
       }
+      if (error.code === 'P2010' && error.meta?.code === '23505') {
+        throw new ConflictException('El folio contractual ya existe');
+      }
       if (error.code === 'P2003') {
         throw new BadRequestException(
           'Una relación indicada para el contrato no existe',
@@ -309,6 +333,9 @@ export class ContratosService {
           'Uno o más campos exceden la longitud permitida',
         );
       }
+    }
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+      throw new ConflictException('El folio contractual ya existe');
     }
     throw error;
   }

@@ -78,12 +78,13 @@ describe('I1: contratos DTO en el borde HTTP, sin base de datos', () => {
     const request = {
       cliente_id: uuid,
       servicio_id: 1,
-      folio: 'CONTRATO-TEST',
       fecha_contrato: '2026-11-16',
       estado_contrato_id: 1,
     };
     const valid = await body(request, CreateContratoDto);
     expect(valid.fecha_contrato).toBeInstanceOf(Date);
+    await expect(body({ ...request, folio: 'CONTRATO-TEST' }, CreateContratoDto))
+      .rejects.toBeInstanceOf(BadRequestException);
     await expect(
       body({ ...request, totalPagar: '100.00' }, CreateContratoDto),
     ).rejects.toBeInstanceOf(BadRequestException);

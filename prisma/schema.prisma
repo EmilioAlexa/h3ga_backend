@@ -459,11 +459,22 @@ model seguimiento_m40_retroactiva {
 model servicios {
   id                                Int                                 @id @default(autoincrement()) @db.SmallInt
   nombre                            String                              @unique
+  codigo_folio                      String?                             @unique(map: "uq_servicios_codigo_folio") @db.VarChar(4)
   descripcion                       String?
   activo                            Boolean                             @default(true)
   contratos                         contratos[]
+  folios_contrato_contadores        folios_contrato_contadores[]
   esquemas_dispersion               esquemas_dispersion[]
   servicios_complementarios_tramite servicios_complementarios_tramite[]
+}
+
+model folios_contrato_contadores {
+  servicio_id Int       @db.SmallInt
+  anio        Int       @db.SmallInt
+  ultimo      BigInt    @default(0)
+  servicios   servicios @relation(fields: [servicio_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_folios_contrato_contadores_servicio")
+
+  @@id([servicio_id, anio], map: "pk_folios_contrato_contadores")
 }
 
 model tipos_asesor {

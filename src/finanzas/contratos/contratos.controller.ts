@@ -158,7 +158,7 @@ export class ContratosController {
   @Post()
   @Roles('administrador', 'administrador financiero', 'asesor')
   @ApiOperation({
-    summary: 'Registrar un contrato',
+    summary: 'Registrar un contrato con folio generado por el backend',
     description:
       'Asesores, administradores y administradores financieros pueden registrar contratos. Al asesor se le asigna contratos.asesor_id desde el usuario autenticado; debe omitir asesor_id del cuerpo. Administración debe proporcionar asesor_id de un usuario activo con rol asesor.',
   })
