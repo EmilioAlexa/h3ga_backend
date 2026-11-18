@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,6 +16,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -217,5 +221,30 @@ export class ClientesController {
   @ApiForbiddenResponse({ description: 'Solo administración.' })
   historialReferidor(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() currentUser: AuthenticatedUser) {
     return this.clientesService.historialReferidor(id, currentUser);
+  }
+
+  @Get(':id/dependencias')
+  @Roles('administrador', 'administrador financiero')
+  @ApiOperation({ summary: 'Previsualizar dependencias directas e indirectas de un cliente', description: 'Cuenta todas las FK actuales hacia clientes, incluidas relaciones CASCADE y de Ruta. No reserva el cliente; DELETE vuelve a comprobar dentro de una transacción.' })
+  @ApiOkResponse({ description: 'cliente_id, apto_para_eliminacion, dependencias [{tabla,columna,restriccion,on_delete,cantidad}], bloqueantes e indirectas. No incluye identidades de terceros.' })
+  @ApiBadRequestResponse({ description: 'UUID inválido.' })
+  @ApiUnauthorizedResponse({ description: 'Falta JWT válido.' })
+  @ApiForbiddenResponse({ description: 'Solo administrador y administrador financiero.' })
+  @ApiNotFoundResponse({ description: 'Cliente inexistente.' })
+  dependencies(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() currentUser: AuthenticatedUser) {
+    return this.clientesService.dependencies(id, currentUser);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('administrador', 'administrador financiero')
+  @ApiOperation({ summary: 'Eliminar físicamente un cliente sin dependencias', description: 'Solo disponible después de aplicar la migración de auditoría aprobada. Bloquea la fila, cuenta todas las FK y registra actor y UUID en la misma transacción. No usa CASCADE ni borra historia.' })
+  @ApiBadRequestResponse({ description: 'UUID inválido.' })
+  @ApiUnauthorizedResponse({ description: 'Falta JWT válido.' })
+  @ApiForbiddenResponse({ description: 'Solo administrador y administrador financiero.' })
+  @ApiNotFoundResponse({ description: 'Cliente inexistente.' })
+  @ApiConflictResponse({ description: 'Migración de auditoría pendiente, dependencias existentes o FK concurrente. Respuesta estructurada con código seguro.' })
+  delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() currentUser: AuthenticatedUser) {
+    return this.clientesService.deleteWithoutDependencies(id, currentUser);
   }
 }

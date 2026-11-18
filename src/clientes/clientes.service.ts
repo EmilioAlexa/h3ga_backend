@@ -17,6 +17,23 @@ type AuthenticatedUser = {
   roles: { nombre: string };
 };
 
+type ClientDependency = {
+  tabla: string;
+  columna: string;
+  restriccion: string;
+  on_delete: string;
+  cantidad: number;
+};
+
+type ClientDependencyCatalogRow = {
+  esquema: string;
+  tabla: string;
+  columna: string;
+  restriccion: string;
+  on_delete: string;
+  columnas_clave: number;
+};
+
 const clienteListadoSelect = {
   id: true,
   pausado: true,
@@ -247,6 +264,106 @@ export class ClientesService {
       select: { id: true, referidor_anterior_id: true, referidor_nuevo_id: true,
         actor_id: true, motivo: true, fecha_cambio: true },
     });
+  }
+
+  async dependencies(id: string, currentUser: AuthenticatedUser) {
+    this.ensureCanRetire(currentUser);
+    return this.prisma.$transaction(async (tx) => {
+      if (!await tx.clientes.findUnique({ where: { id }, select: { id: true } })) {
+        throw new NotFoundException('Cliente no encontrado');
+      }
+      const direct = await this.clientDependencies(tx, id);
+      return {
+        cliente_id: id,
+        apto_para_eliminacion: direct.every((item) => item.cantidad === 0),
+        dependencias: direct,
+        bloqueantes: direct.filter((item) => item.cantidad > 0),
+        indirectas: await this.indirectDependencies(tx, id),
+        advertencia: 'La previsualización no reserva el cliente; DELETE comprueba nuevamente las dependencias',
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+
+  async deleteWithoutDependencies(id: string, currentUser: AuthenticatedUser): Promise<void> {
+    this.ensureCanRetire(currentUser);
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT "id" FROM "clientes" WHERE "id"=${id}::uuid FOR UPDATE`,
+        );
+        if (!rows.length) throw new NotFoundException('Cliente no encontrado');
+        const direct = await this.clientDependencies(tx, id);
+        const blocking = direct.filter((item) => item.cantidad > 0);
+        if (blocking.length) {
+          throw new ConflictException({ codigo: 'CLIENTE_CON_DEPENDENCIAS', mensaje: 'El cliente conserva relaciones y no puede eliminarse', dependencias: blocking });
+        }
+        const audit = await tx.$queryRaw<Array<{ ready: boolean }>>(
+          Prisma.sql`SELECT to_regclass('public.clientes_eliminaciones') IS NOT NULL AS ready`,
+        );
+        if (!audit[0]?.ready) {
+          throw new ConflictException({ codigo: 'AUDITORIA_NO_DISPONIBLE', mensaje: 'La eliminación requiere la migración de auditoría' });
+        }
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "clientes_eliminaciones" ("cliente_id","eliminado_por")
+          VALUES (${id}::uuid,${currentUser.id}::uuid)
+        `);
+        await tx.clientes.delete({ where: { id } });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new ConflictException({ codigo: 'DEPENDENCIA_CONCURRENTE', mensaje: 'Una relación impide eliminar el cliente' });
+      }
+      throw error;
+    }
+  }
+
+  private ensureCanRetire(user: AuthenticatedUser): void {
+    if (!['administrador', 'administrador financiero'].includes(user?.roles?.nombre)) {
+      throw new ForbiddenException('Solo administración puede consultar dependencias o retirar clientes');
+    }
+  }
+
+  private async clientDependencies(db: Prisma.TransactionClient, id: string): Promise<ClientDependency[]> {
+    const rows = await db.$queryRaw<ClientDependencyCatalogRow[]>(Prisma.sql`
+      SELECT ns.nspname AS esquema, rel.relname AS tabla, att.attname AS columna, con.conname AS restriccion,
+             CASE con.confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'r' THEN 'RESTRICT'
+               WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' ELSE 'NO ACTION' END AS on_delete,
+             cardinality(con.conkey)::int AS columnas_clave
+      FROM pg_constraint con
+      JOIN pg_class rel ON rel.oid=con.conrelid
+      JOIN pg_namespace ns ON ns.oid=rel.relnamespace
+      JOIN pg_attribute att ON att.attrelid=rel.oid AND att.attnum=con.conkey[1]
+      WHERE con.contype='f' AND con.confrelid='public.clientes'::regclass
+      ORDER BY rel.relname,att.attname,con.conname
+    `);
+    const result: ClientDependency[] = [];
+    for (const row of rows) {
+      if (row.esquema !== 'public' || row.columnas_clave !== 1 || !/^[a-z_][a-z0-9_]*$/.test(row.tabla) || !/^[a-z_][a-z0-9_]*$/.test(row.columna)) {
+        throw new ConflictException({ codigo: 'ESQUEMA_NO_COMPATIBLE', mensaje: 'Una relación de cliente requiere revisión antes de eliminar' });
+      }
+      const count = await db.$queryRaw<Array<{ cantidad: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS cantidad FROM ${Prisma.raw(`"public"."${row.tabla}"`)}
+        WHERE ${Prisma.raw(`"${row.columna}"`)}=${id}::uuid
+      `);
+      result.push({ tabla: row.tabla, columna: row.columna, restriccion: row.restriccion,
+        on_delete: row.on_delete, cantidad: count[0]?.cantidad ?? 0 });
+    }
+    return result;
+  }
+
+  private async indirectDependencies(db: Prisma.TransactionClient, id: string) {
+    const rows = await db.$queryRaw<Array<{ pagos: number; programados: number; comisiones: number; evidencias: number; dispersiones: number; detalles_corte: number; cortes: number; prenominas: number }>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM "pagos" p JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS pagos,
+        (SELECT COUNT(*)::int FROM "pagos_programados" pp JOIN "contratos" ct ON ct."id"=pp."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS programados,
+        (SELECT COUNT(*)::int FROM "comisiones" c JOIN "pagos" p ON p."id"=c."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS comisiones,
+        (SELECT COUNT(*)::int FROM "evidencias_pago" e JOIN "pagos" p ON p."id"=e."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS evidencias,
+        (SELECT COUNT(*)::int FROM "dispersiones_comision" d JOIN "comisiones" c ON c."id"=d."comision_id" JOIN "pagos" p ON p."id"=c."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS dispersiones,
+        (SELECT COUNT(*)::int FROM "detalle_corte" dc JOIN "pagos" p ON p."id"=dc."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS detalles_corte,
+        (SELECT COUNT(DISTINCT dc."corte_id")::int FROM "detalle_corte" dc JOIN "pagos" p ON p."id"=dc."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS cortes,
+        (SELECT COUNT(DISTINCT pr."id")::int FROM "prenomina" pr JOIN "detalle_corte" dc ON dc."corte_id"=pr."corte_id" JOIN "pagos" p ON p."id"=dc."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id" WHERE ct."cliente_id"=${id}::uuid) AS prenominas
+    `);
+    return rows[0];
   }
 
   private ensureCanRead(currentUser: AuthenticatedUser): void {

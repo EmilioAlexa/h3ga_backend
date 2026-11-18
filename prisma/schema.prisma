@@ -650,6 +650,7 @@ model usuarios {
   receptores_dispersion_receptor_creador                                            receptores_dispersion[]               @relation("receptor_dispersion_creador")
   historial_configuracion_dispersion                                                historial_configuracion_dispersion[]
   historial_referidor_cliente                                                       historial_referidor_cliente[]
+  clientes_eliminaciones                                                            clientes_eliminaciones[]
   historial_estados_comisiones                                                      historial_estados_comisiones[]
   dispersiones_comision                                                             dispersiones_comision[]              @relation("dispersiones_confirmador")
   historial_estados_corte                                                           historial_estados_corte[]
@@ -1312,6 +1313,18 @@ model historial_referidor_cliente {
   @@index([referidor_anterior_id], map: "ix_historial_referidor_anterior")
   @@index([referidor_nuevo_id], map: "ix_historial_referidor_nuevo")
   @@index([actor_id], map: "ix_historial_referidor_actor")
+}
+
+/// Evento durable de eliminación física. cliente_id no tiene FK porque el cliente se retira.
+model clientes_eliminaciones {
+  id            String   @id(map: "clientes_eliminaciones_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id    String   @db.Uuid
+  eliminado_por String   @db.Uuid
+  eliminado_en  DateTime @default(now()) @db.Timestamptz(6)
+  usuarios      usuarios @relation(fields: [eliminado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_eliminaciones_actor")
+
+  @@index([cliente_id], map: "ix_clientes_eliminaciones_cliente")
+  @@index([eliminado_por, eliminado_en], map: "ix_clientes_eliminaciones_actor_fecha")
 }
 
 model configuracion_comisiones_obsoleta {

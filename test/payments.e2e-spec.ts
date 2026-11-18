@@ -1131,6 +1131,17 @@ describe('Pagos con PostgreSQL aislado', () => {
       .query({ corte_id: cut.body.id }).set('Authorization', `Bearer ${adminToken}`).expect(200);
     expect(listing.body.total).toBe(1);
     expect(listing.body.data[0].detalle_prenomina).toHaveLength(2);
+    for (const refId of [firstRef.body.id, secondRef.body.id]) {
+      const preview = await request(server()).get(`/api/clientes/${refId}/dependencias`)
+        .set('Authorization', `Bearer ${adminToken}`).expect(200);
+      expect(preview.body.bloqueantes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ tabla: 'comisiones', columna: 'receptor_cliente_id', cantidad: 1 }),
+        expect.objectContaining({ tabla: 'detalle_prenomina', columna: 'receptor_cliente_id', cantidad: 1 }),
+      ]));
+      const blocked = await request(server()).delete(`/api/clientes/${refId}`)
+        .set('Authorization', `Bearer ${adminToken}`).expect(409);
+      expect(blocked.body.codigo).toBe('CLIENTE_CON_DEPENDENCIAS');
+    }
   });
 
   it('requiere nombre manual para Otro y conserva su snapshot sin dispersarlo', async () => {
