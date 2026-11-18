@@ -1,7 +1,8 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsInt,
+  MinLength,
   IsOptional,
   IsString,
   IsUUID,
@@ -37,10 +38,15 @@ export class CreateContratoDto {
   asesor_id?: string;
 
   @ApiProperty({
-    description: 'Folio del contrato (máximo 50 caracteres).',
+    description: 'Folio provisional del contrato; se recortan espacios y no puede quedar vacío. La generación backend queda pendiente de la estrategia de consecutivo.',
+    minLength: 1,
     maxLength: 50,
   })
   @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @MinLength(1)
   @MaxLength(50)
   folio: string;
 

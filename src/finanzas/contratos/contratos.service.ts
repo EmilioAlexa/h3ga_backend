@@ -147,11 +147,14 @@ export class ContratosService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const [cliente, servicio, estado] = await Promise.all([
-          tx.clientes.findUnique({
-            where: { id: dto.cliente_id },
-            select: { id: true },
-          }),
+        // La pausa y el alta bloquean la misma fila hasta terminar su transacción.
+        const clientes = await tx.$queryRaw<
+          Array<{ id: string; pausado: boolean }>
+        >(
+          Prisma.sql`SELECT "id", "pausado" FROM "clientes" WHERE "id" = ${dto.cliente_id}::uuid FOR UPDATE`,
+        );
+        const cliente = clientes[0];
+        const [servicio, estado] = await Promise.all([
           tx.servicios.findUnique({
             where: { id: dto.servicio_id, activo: true },
             select: { id: true },
@@ -164,6 +167,9 @@ export class ContratosService {
 
         if (!cliente)
           throw new BadRequestException('El cliente indicado no existe');
+        if (cliente.pausado) {
+          throw new ConflictException('El cliente está pausado');
+        }
         if (!servicio) {
           throw new BadRequestException(
             'El servicio indicado no existe o está inactivo',
@@ -193,12 +199,21 @@ export class ContratosService {
           }
         }
 
+        const folio = dto.folio.trim();
+        const existente = await tx.contratos.findFirst({
+          where: { folio },
+          select: { id: true },
+        });
+        if (existente) {
+          throw new ConflictException('El folio contractual ya existe');
+        }
+
         return tx.contratos.create({
           data: {
             cliente_id: dto.cliente_id,
             servicio_id: dto.servicio_id,
             asesor_id: asesorId,
-            folio: dto.folio.trim(),
+            folio,
             fecha_contrato: dto.fecha_contrato,
             estado_contrato_id: dto.estado_contrato_id,
             cantidad_pagos: dto.cantidad_pagos,

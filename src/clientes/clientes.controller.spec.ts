@@ -28,6 +28,7 @@ type TestUser = {
 
 type TestCliente = {
   id: string;
+  pausado: boolean;
   asesor_id: string | null;
   nombre: string;
   apellido_paterno: string;
@@ -50,6 +51,7 @@ type ClienteWhere = {
 const baseClients: TestCliente[] = [
   {
     id: clientAId,
+    pausado: false,
     asesor_id: advisorAId,
     nombre: 'María',
     apellido_paterno: 'López',
@@ -64,6 +66,7 @@ const baseClients: TestCliente[] = [
   },
   {
     id: clientBId,
+    pausado: false,
     asesor_id: advisorBId,
     nombre: 'Carlos',
     apellido_paterno: 'Pérez',
@@ -78,6 +81,7 @@ const baseClients: TestCliente[] = [
   },
   {
     id: clientUnassignedId,
+    pausado: false,
     asesor_id: null,
     nombre: 'Lucía',
     apellido_paterno: 'Gómez',
@@ -125,7 +129,12 @@ describe('ClientesController (JWT, roles and client scope)', () => {
   let jwt: JwtService;
   let clients: TestCliente[];
   let users: Map<string, TestUser>;
+  let pauseTransaction: {
+    $queryRaw: jest.Mock;
+    clientes: { update: jest.Mock };
+  };
   let prisma: {
+    $transaction: jest.Mock;
     clientes: {
       findMany: jest.Mock;
       findUnique: jest.Mock;
@@ -141,9 +150,12 @@ describe('ClientesController (JWT, roles and client scope)', () => {
   }
 
   beforeAll(async () => {
-    clients = [...baseClients];
+    clients = baseClients.map((client) => ({ ...client }));
     users = new Map<string, TestUser>([
-      [adminId, { id: adminId, activo: true, roles: { nombre: 'administrador' } }],
+      [
+        adminId,
+        { id: adminId, activo: true, roles: { nombre: 'administrador' } },
+      ],
       [
         financialAdminId,
         {
@@ -152,15 +164,46 @@ describe('ClientesController (JWT, roles and client scope)', () => {
           roles: { nombre: 'administrador financiero' },
         },
       ],
-      [advisorAId, { id: advisorAId, activo: true, roles: { nombre: 'asesor' } }],
-      [advisorBId, { id: advisorBId, activo: true, roles: { nombre: 'asesor' } }],
+      [
+        advisorAId,
+        { id: advisorAId, activo: true, roles: { nombre: 'asesor' } },
+      ],
+      [
+        advisorBId,
+        { id: advisorBId, activo: true, roles: { nombre: 'asesor' } },
+      ],
       [
         auxiliaryId,
-        { id: auxiliaryId, activo: true, roles: { nombre: 'auxiliar administrativo' } },
+        {
+          id: auxiliaryId,
+          activo: true,
+          roles: { nombre: 'auxiliar administrativo' },
+        },
       ],
     ]);
 
+    pauseTransaction = {
+      $queryRaw: jest.fn(async (query: { values: string[] }) =>
+        clients.some((client) => client.id === query.values[0])
+          ? [{ id: query.values[0] }]
+          : [],
+      ),
+      clientes: {
+        update: jest.fn(async ({ where, data, select }: any) => {
+          const client = clients.find(
+            (candidate) => candidate.id === where.id,
+          )!;
+          Object.assign(client, data);
+          return projectCliente(client, select);
+        }),
+      },
+    };
+
     prisma = {
+      $transaction: jest.fn(
+        async (callback: (tx: typeof pauseTransaction) => unknown) =>
+          callback(pauseTransaction),
+      ),
       clientes: {
         findMany: jest.fn(async (args) => {
           const matches = clients.filter((client) =>
@@ -176,14 +219,16 @@ describe('ClientesController (JWT, roles and client scope)', () => {
           );
           return client ? projectCliente(client, args.select) : null;
         }),
-        count: jest.fn(async (args) =>
-          clients.filter((client) =>
-            matchesWhere(client, args.where as ClienteWhere),
-          ).length,
+        count: jest.fn(
+          async (args) =>
+            clients.filter((client) =>
+              matchesWhere(client, args.where as ClienteWhere),
+            ).length,
         ),
         create: jest.fn(async (args) => {
           const client: TestCliente = {
             id: 'e4ffb39c-5e45-41ae-87f8-668bd2fed535',
+            pausado: false,
             asesor_id: args.data.asesor_id,
             nombre: args.data.nombre,
             apellido_paterno: args.data.apellido_paterno,
@@ -209,8 +254,9 @@ describe('ClientesController (JWT, roles and client scope)', () => {
         }),
       },
       usuarios: {
-        findUnique: jest.fn(async ({ where }: { where: { id: string } }) =>
-          users.get(where.id) ?? null,
+        findUnique: jest.fn(
+          async ({ where }: { where: { id: string } }) =>
+            users.get(where.id) ?? null,
         ),
       },
     };
@@ -218,7 +264,10 @@ describe('ClientesController (JWT, roles and client scope)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: jwtSecret, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: jwtSecret,
+          signOptions: { expiresIn: '1h' },
+        }),
       ],
       controllers: [ClientesController],
       providers: [
@@ -244,7 +293,7 @@ describe('ClientesController (JWT, roles and client scope)', () => {
   });
 
   beforeEach(() => {
-    clients = [...baseClients];
+    clients = baseClients.map((client) => ({ ...client }));
     jest.clearAllMocks();
   });
 
@@ -279,9 +328,9 @@ describe('ClientesController (JWT, roles and client scope)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(response.body.data.map((client: { id: string }) => client.id)).toEqual([
-      clientAId,
-    ]);
+    expect(
+      response.body.data.map((client: { id: string }) => client.id),
+    ).toEqual([clientAId]);
     expect(prisma.clientes.findMany.mock.calls[0][0].where).toEqual({
       asesor_id: advisorAId,
     });
@@ -314,6 +363,7 @@ describe('ClientesController (JWT, roles and client scope)', () => {
     expect(response.body).not.toHaveProperty('asesor_id');
     expect(prisma.clientes.findUnique.mock.calls[0][0].select).toEqual({
       id: true,
+      pausado: true,
       nombre: true,
       apellido_paterno: true,
       apellido_materno: true,
@@ -443,6 +493,80 @@ describe('ClientesController (JWT, roles and client scope)', () => {
       .expect(403);
 
     expect(prisma.clientes.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['administrador', adminId],
+    ['administrador financiero', financialAdminId],
+  ])(
+    '%s pausa y reactiva al cliente sin cambiar datos geográficos',
+    async (_role, id) => {
+      const token = await tokenFor(id);
+      const route = `/api/clientes/${clientAId}/estado-operativo`;
+      const paused = await request(app.getHttpServer())
+        .patch(route)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ pausado: true })
+        .expect(200);
+      expect(paused.body.pausado).toBe(true);
+      expect(pauseTransaction.$queryRaw).toHaveBeenCalled();
+      expect(pauseTransaction.$queryRaw.mock.calls[0][0].sql).toContain(
+        'FOR UPDATE',
+      );
+      if (id === financialAdminId) {
+        expect(paused.body).not.toHaveProperty('curp');
+        expect(paused.body).not.toHaveProperty('rfc');
+      }
+      const reactivated = await request(app.getHttpServer())
+        .patch(route)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ pausado: false })
+        .expect(200);
+      expect(reactivated.body.pausado).toBe(false);
+      expect(clients.find((client) => client.id === clientAId)?.pausado).toBe(
+        false,
+      );
+    },
+  );
+
+  it('protege pausa con 400, 401, 403 y 404', async () => {
+    const route = `/api/clientes/${clientAId}/estado-operativo`;
+    await request(app.getHttpServer())
+      .patch(route)
+      .send({ pausado: true })
+      .expect(401);
+    for (const id of [advisorAId, auxiliaryId]) {
+      const token = await tokenFor(id);
+      await request(app.getHttpServer())
+        .patch(route)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ pausado: true })
+        .expect(403);
+    }
+    const adminToken = await tokenFor(adminId);
+    for (const invalid of [
+      {},
+      { pausado: 'true' },
+      { pausado: true, estado: 'MX' },
+    ]) {
+      await request(app.getHttpServer())
+        .patch(route)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(invalid)
+        .expect(400);
+    }
+    await request(app.getHttpServer())
+      .patch('/api/clientes/no-uuid/estado-operativo')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ pausado: true })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(
+        '/api/clientes/ffffffff-ffff-4fff-8fff-ffffffffffff/estado-operativo',
+      )
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ pausado: true })
+      .expect(404);
   });
 
   it('applies pagination and search filters', async () => {

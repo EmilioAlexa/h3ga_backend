@@ -101,6 +101,11 @@ describe('Contratos API (e2e)', () => {
     ];
 
     const transaction = {
+      $queryRaw: jest.fn(async (query: { values: string[] }) =>
+        query.values[0] === ids.customer
+          ? [{ id: ids.customer, pausado: false }]
+          : [],
+      ),
       clientes: {
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === ids.customer ? { id: ids.customer } : null,
@@ -122,6 +127,11 @@ describe('Contratos API (e2e)', () => {
         ),
       },
       contratos: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          contracts.find((record) => record.folio === where.folio)
+            ? { id: ids.contract }
+            : null,
+        ),
         create: jest.fn(async ({ data }: any) => {
           const created = contractRecord(
             data,

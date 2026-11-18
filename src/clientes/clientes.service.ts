@@ -18,6 +18,7 @@ type AuthenticatedUser = {
 
 const clienteListadoSelect = {
   id: true,
+  pausado: true,
   nombre: true,
   apellido_paterno: true,
   apellido_materno: true,
@@ -149,6 +150,39 @@ export class ClientesService {
     } catch (error) {
       this.handlePrismaError(error);
     }
+  }
+
+  async setPaused(
+    id: string,
+    pausado: boolean,
+    currentUser: AuthenticatedUser,
+  ) {
+    if (
+      !['administrador', 'administrador financiero'].includes(
+        currentUser?.roles?.nombre,
+      )
+    ) {
+      throw new ForbiddenException(
+        'No tienes permiso para cambiar el estado operativo',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT "id" FROM "clientes" WHERE "id" = ${id}::uuid FOR UPDATE`,
+      );
+      if (rows.length === 0)
+        throw new NotFoundException('Cliente no encontrado');
+
+      return tx.clientes.update({
+        where: { id },
+        data: { pausado },
+        select:
+          currentUser.roles.nombre === 'administrador'
+            ? clienteDetalleAdministradorSelect
+            : clienteListadoSelect,
+      });
+    });
   }
 
   private ensureCanRead(currentUser: AuthenticatedUser): void {

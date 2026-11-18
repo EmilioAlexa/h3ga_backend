@@ -48,6 +48,16 @@ const pagoSelect = {
       folio: true,
       cliente_id: true,
       asesor_id: true,
+      cantidad_pagos: true,
+      servicios: { select: { id: true, nombre: true } },
+      usuarios: {
+        select: {
+          id: true,
+          nombre: true,
+          apellido_paterno: true,
+          apellido_materno: true,
+        },
+      },
       clientes: {
         select: {
           id: true,

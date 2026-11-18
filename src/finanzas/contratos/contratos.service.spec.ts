@@ -18,6 +18,7 @@ describe('ContratosService advisor policy', () => {
       observaciones: null,
     };
     tx = {
+      $queryRaw: jest.fn(async () => [{ id: customerId, pausado: false }]),
       clientes: { findUnique: jest.fn(async () => ({ id: customerId })) },
       servicios: { findUnique: jest.fn(async () => ({ id: 1 })) },
       estados_contratos: { findUnique: jest.fn(async () => ({ id: 1 })) },
@@ -29,6 +30,7 @@ describe('ContratosService advisor policy', () => {
         })),
       },
       contratos: {
+        findFirst: jest.fn(async () => null),
         create: jest.fn(async ({ data }: any) => ({ ...contract, ...data })),
       },
     };

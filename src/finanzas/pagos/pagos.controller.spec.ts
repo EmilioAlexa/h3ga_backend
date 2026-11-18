@@ -71,6 +71,14 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
     folio: id === ids.contract ? 'CONTRATO-1' : 'CONTRATO-2',
     cliente_id: ids.customer,
     asesor_id: id === ids.contract ? ids.advisor : ids.otherAdvisor,
+    cantidad_pagos: 10,
+    servicios: { id: 1, nombre: 'APD' },
+    usuarios: {
+      id: id === ids.contract ? ids.advisor : ids.otherAdvisor,
+      nombre: 'Asesor contractual',
+      apellido_paterno: 'Prueba',
+      apellido_materno: null,
+    },
     clientes: {
       id: ids.customer,
       nombre: 'Cliente',
@@ -221,7 +229,7 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
           payments.push(payment);
           return payment;
         }),
-        findFirst: jest.fn(async ({ where }: any) => {
+        findFirst: jest.fn(async ({ where, select }: any) => {
           const payment = payments.find((item) => item.id === where.id);
           if (!payment) return null;
           if (
@@ -231,6 +239,7 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
           ) {
             return null;
           }
+          if (select?.contratos) return buildPayment(payment, payment.id);
           return {
             id: payment.id,
             estado_pago_id: payment.estado_pago_id,
@@ -341,7 +350,10 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
       controllers: [PagosController],
       providers: [
         PagosService,
-        { provide: ComisionesService, useValue: { generateForValidatedPayment: jest.fn() } },
+        {
+          provide: ComisionesService,
+          useValue: { generateForValidatedPayment: jest.fn() },
+        },
         JwtAuthGuard,
         JwtStrategy,
         RolesGuard,
@@ -548,6 +560,35 @@ describe('PagosController (JWT, amounts, roles, history and ownership)', () => {
       .get(`/api/finanzas/pagos/${ids.otherPayment}/historial`)
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
+  });
+
+  it('expone folio, servicio y asesor contractual; conserva fecha_pago nula', async () => {
+    payments[0].fecha_pago = null;
+    const token = await tokenFor(ids.advisor);
+    const response = await request(app.getHttpServer())
+      .get(`/api/finanzas/pagos/${ids.payment}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(response.body).toMatchObject({
+      id: ids.payment,
+      fecha_pago: null,
+      registrado_por: ids.advisor,
+      contratos: {
+        folio: 'CONTRATO-1',
+        cantidad_pagos: 10,
+        servicios: { nombre: 'APD' },
+        usuarios: { id: ids.advisor },
+      },
+    });
+    expect(response.body).not.toHaveProperty('folio');
+    const select = (prisma.pagos.findFirst as jest.Mock).mock.calls.at(-1)?.[0]
+      ?.select;
+    expect(select?.contratos?.select).toMatchObject({
+      folio: true,
+      cantidad_pagos: true,
+      servicios: { select: { id: true, nombre: true } },
+      usuarios: { select: { id: true, nombre: true } },
+    });
   });
 
   it('enforces the financial review and administrator authorization matrix with evidence', async () => {

@@ -2,9 +2,11 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
@@ -31,7 +33,7 @@ export class AuthController {
     summary: 'Iniciar sesión',
     description: 'Autentica con correo y contraseña; operación pública.',
   })
-  @ApiOkResponse({
+  @ApiCreatedResponse({
     description:
       'Credenciales válidas; devuelve access_token y perfil público.',
     type: LoginRespuestaDto,
@@ -62,25 +64,38 @@ export class AuthController {
     return usuario;
   }
 
-@Post('forgot-password')
-@UseGuards(ThrottlerGuard)
-@ApiOperation({ summary: 'Solicitar recuperación de contraseña' })
-@ApiOkResponse({ description: 'Solicitud de recuperación procesada' })
-@Throttle({ default: { limit: 3, ttl: 600000 } })
-async forgotPassword(@Body() dto: ForgotPasswordDto) {
-  return this.authService.forgotPassword(dto.correo_electronico);
-}
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @ApiOperation({ summary: 'Solicitar recuperación de contraseña' })
+  @ApiCreatedResponse({
+    description:
+      'Solicitud procesada; la respuesta no revela si existe la cuenta.',
+  })
+  @ApiBadRequestResponse({ description: 'Correo electrónico inválido.' })
+  @ApiTooManyRequestsResponse({
+    description: 'Límite de solicitudes de recuperación excedido.',
+  })
+  @Throttle({ default: { limit: 3, ttl: 600000 } })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.correo_electronico);
+  }
 
-@Post('reset-password')
-@UseGuards(ThrottlerGuard)
-@ApiOperation({ summary: 'Restablecer contraseña' })
-@Throttle({ default: { limit: 5, ttl: 600000 } })
-@ApiOkResponse({ description: 'Contraseña actualizada correctamente' })
-async resetPassword(@Body() dto: ResetPasswordDto) {
-  return this.authService.resetPassword(
-    dto.correo_electronico,
-    dto.codigo,
-    dto.nueva_contrasena,
-  );
-}
+  @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @ApiOperation({ summary: 'Restablecer contraseña' })
+  @Throttle({ default: { limit: 5, ttl: 600000 } })
+  @ApiCreatedResponse({ description: 'Contraseña actualizada correctamente.' })
+  @ApiBadRequestResponse({
+    description: 'Código inválido, expirado o datos inválidos.',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'Límite de intentos de restablecimiento excedido.',
+  })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(
+      dto.correo_electronico,
+      dto.codigo,
+      dto.nueva_contrasena,
+    );
+  }
 }

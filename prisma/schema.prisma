@@ -11,6 +11,7 @@ datasource db {
 
 model clientes {
   id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pausado                           Boolean                             @default(false)
   grupo_principal_id                Int?                                @db.SmallInt
   nombre                            String
   apellido_paterno                  String
