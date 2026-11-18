@@ -82,6 +82,7 @@ model comisiones {
   tipo_calculo                   tipo_calculo_dispersion
   valor_aplicado                 Decimal                        @db.Decimal(12, 2)
   historial_estados_comisiones   historial_estados_comisiones[]
+  dispersiones_comision          dispersiones_comision?
   conceptos_dispersion           conceptos_dispersion           @relation(fields: [concepto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   contrato_dispersion_detalle    contrato_dispersion_detalle?   @relation(fields: [contrato_dispersion_detalle_id], references: [id], onUpdate: NoAction)
   detalle_prenomina              detalle_prenomina?             @relation(fields: [detalle_prenomina_id], references: [id], onUpdate: NoAction)
@@ -95,6 +96,23 @@ model comisiones {
   @@index([concepto_id], map: "ix_comisiones_concepto")
   @@index([detalle_prenomina_id], map: "ix_comisiones_prenomina")
   @@index([receptor_dispersion_id], map: "ix_comisiones_receptor_dispersion")
+}
+
+/// Confirmación privada y única de una dispersión total. El SQL también define checks de referencia y comprobante.
+model dispersiones_comision {
+  id                       String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  comision_id              String     @unique(map: "uq_dispersiones_comision") @db.Uuid
+  idempotency_key          String     @unique(map: "uq_dispersiones_idempotency_key") @db.Uuid
+  referencia_transferencia String     @db.VarChar(120)
+  confirmado_por           String     @db.Uuid
+  confirmado_en            DateTime   @default(now()) @db.Timestamptz(6)
+  comprobante_path         String
+  comprobante_sha256       String     @db.Char(64)
+  comprobante_tamano_bytes Int
+  comisiones               comisiones @relation(fields: [comision_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_dispersiones_comision")
+  usuarios                 usuarios   @relation("dispersiones_confirmador", fields: [confirmado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_dispersiones_confirmador")
+
+  @@index([confirmado_en], map: "ix_dispersiones_confirmado_en")
 }
 
 model contratos {
@@ -616,6 +634,7 @@ model usuarios {
   receptores_dispersion_receptor_creador                                            receptores_dispersion[]               @relation("receptor_dispersion_creador")
   historial_configuracion_dispersion                                                historial_configuracion_dispersion[]
   historial_estados_comisiones                                                      historial_estados_comisiones[]
+  dispersiones_comision                                                             dispersiones_comision[]              @relation("dispersiones_confirmador")
   historial_estados_corte                                                           historial_estados_corte[]
   versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                 @relation("versiones_documento_revisor_idTousuarios")
   versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                 @relation("versiones_documento_subido_porTousuarios")

@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ConfiguracionDispersionItemDto {
   @ApiProperty({ minimum: 1, maximum: 32767 })
@@ -22,9 +22,10 @@ export class ConfiguracionDispersionItemDto {
   @Max(32767)
   concepto_id: number;
 
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Obligatorio para Asesor; opcional para destinos manuales e IMSS.' })
+  @IsOptional()
   @IsUUID()
-  receptor_dispersion_id: string;
+  receptor_dispersion_id?: string | null;
 
   @ApiProperty({
     type: String,

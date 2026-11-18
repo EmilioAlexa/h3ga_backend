@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -39,6 +40,8 @@ describe('Pagos con PostgreSQL aislado', () => {
   const serviceIds: number[] = [];
   const contractStateIds: number[] = [];
   const scheduledStateIds: number[] = [];
+  const receiverIds: string[] = [];
+  const cutIds: string[] = [];
 
   const server = () => app.getHttpServer();
   const tokenFor = (id: string) => jwt.signAsync({ sub: id });
@@ -115,7 +118,7 @@ describe('Pagos con PostgreSQL aislado', () => {
     await assertTestDatabase();
     const states = await prisma.estados_pago.findMany({ where: { nombre: { in: paymentStates } }, select: { nombre: true } });
     if (states.length !== paymentStates.length) throw new Error('Faltan estados de pago autorizados');
-    if (await prisma.servicios.count({ where: { codigo_folio: { in: ['APD', 'M10'] } } })) {
+    if (await prisma.servicios.count({ where: { codigo_folio: { in: ['APD', 'M10', 'M40', 'M40R'] } } })) {
       throw new Error('Un código de servicio de la suite ya pertenece a un catálogo preexistente');
     }
     if (await prisma.tipos_cobro.findUnique({ where: { nombre: 'Penalización' } })) {
@@ -158,11 +161,21 @@ describe('Pagos con PostgreSQL aislado', () => {
       if (!prisma) return;
       const payments = contractIds.length ? await prisma.pagos.findMany({ where: { contrato_id: { in: contractIds } }, select: { id: true } }) : [];
       const paymentIds = payments.map((row) => row.id);
+      if (cutIds.length) {
+        await prisma.cortes_pagos_reservados.deleteMany({ where: { corte_id: { in: cutIds } } });
+        await prisma.cortes_periodos_reservados.deleteMany({ where: { corte_id: { in: cutIds } } });
+        await prisma.detalle_corte.deleteMany({ where: { corte_id: { in: cutIds } } });
+        await prisma.historial_estados_corte.deleteMany({ where: { corte_id: { in: cutIds } } });
+        await prisma.cortes_financieros.deleteMany({ where: { id: { in: cutIds } } });
+      }
       if (paymentIds.length) {
         const files = await prisma.evidencias_pago.findMany({ where: { pago_id: { in: paymentIds } }, select: { archivo_path: true } });
         for (const file of files) await storage.delete(file.archivo_path);
         const commissions = await prisma.comisiones.findMany({ where: { pago_id: { in: paymentIds } }, select: { id: true } });
         if (commissions.length) {
+          const disbursements = await prisma.dispersiones_comision.findMany({ where: { comision_id: { in: commissions.map(row => row.id) } }, select: { id: true, comprobante_path: true } });
+          for (const row of disbursements) await storage.delete(row.comprobante_path);
+          if (disbursements.length) await prisma.dispersiones_comision.deleteMany({ where: { id: { in: disbursements.map(row => row.id) } } });
           await prisma.historial_estados_comisiones.deleteMany({ where: { comision_id: { in: commissions.map((row) => row.id) } } });
           await prisma.comisiones.deleteMany({ where: { id: { in: commissions.map((row) => row.id) } } });
         }
@@ -171,6 +184,11 @@ describe('Pagos con PostgreSQL aislado', () => {
         await prisma.historial_estados_pago.deleteMany({ where: { pago_id: { in: paymentIds } } });
         await prisma.pagos.deleteMany({ where: { id: { in: paymentIds } } });
       }
+      if (contractIds.length) {
+        await prisma.historial_configuracion_dispersion.deleteMany({ where: { contrato_id: { in: contractIds } } });
+        await prisma.contrato_dispersion_detalle.deleteMany({ where: { contrato_id: { in: contractIds } } });
+      }
+      if (receiverIds.length) await prisma.receptores_dispersion.deleteMany({ where: { id: { in: receiverIds } } });
       if (contractIds.length) await prisma.pagos_programados.deleteMany({ where: { contrato_id: { in: contractIds } } });
       if (scheduledStateIds.length) await prisma.estados_pago_programado.deleteMany({ where: { id: { in: scheduledStateIds } } });
       if (contractIds.length) await prisma.contratos.deleteMany({ where: { id: { in: contractIds } } });
@@ -493,6 +511,10 @@ describe('Pagos con PostgreSQL aislado', () => {
   it('exige vencimiento y expone Pendiente, Vencido y Cubierto con filtro y paginación coherentes', async () => {
     const advisorToken = await tokenFor(advisorId);
     const adminToken = await tokenFor(adminId);
+    const imssConcept = await prisma.conceptos_dispersion.findUniqueOrThrow({ where: { nombre: 'IMSS' } });
+    await request(server()).put(`/api/finanzas/contratos/${otherServiceContractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [{ concepto_id: imssConcept.id, valor: '5.0' }] }).expect(200);
     const base = { contrato_id: otherServiceContractId, monto_esperado: '10.00' };
     await request(server()).post('/api/finanzas/pagos-programados')
       .set('Authorization', `Bearer ${advisorToken}`)
@@ -729,5 +751,336 @@ describe('Pagos con PostgreSQL aislado', () => {
     const row = await prisma.pagos_programados.findUniqueOrThrow({ where: { id: race.body.id }, include: { estados_pago_programado: true } });
     expect(linked === 1 && row.estados_pago_programado?.nombre !== 'Cancelado' ||
       linked === 0 && row.estados_pago_programado?.nombre === 'Cancelado').toBe(true);
+  });
+
+  it('conserva snapshots de comisión, filtra el contrato del asesor y rechaza receptor ajeno', async () => {
+    const adminToken = await tokenFor(adminId);
+    const advisorToken = await tokenFor(advisorId);
+    const otherToken = await tokenFor(otherAdvisorId);
+    const concept = await prisma.conceptos_dispersion.findUniqueOrThrow({ where: { nombre: 'Asesor' } });
+    const receiver = await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ concepto_id: concept.id, usuario_id: advisorId }).expect(201);
+    receiverIds.push(receiver.body.id);
+    const otherReceiver = await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ concepto_id: concept.id, usuario_id: otherAdvisorId }).expect(201);
+    receiverIds.push(otherReceiver.body.id);
+    const config = (id: string, value: string) => ({ configuracion: [{ concepto_id: concept.id, receptor_dispersion_id: id, valor: value }] });
+    await request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`).send(config(otherReceiver.body.id, '12.5')).expect(400);
+    await request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`).send(config(receiver.body.id, '12.3')).expect(400);
+    await request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`).send(config(receiver.body.id, '12.5')).expect(200);
+    const registerAndValidate = async (reference: string, targetContract = contractId) => {
+      const created = await request(server()).post('/api/finanzas/pagos')
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .send({ ...paymentBody(targetContract), monto: '100.00', referencia_pago: reference }).expect(201);
+      await request(server()).post(`/api/finanzas/pagos/${created.body.id}/evidencias`)
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: `${reference}.pdf`, contentType: 'application/pdf' }).expect(201);
+      return created.body.id as string;
+    };
+    const firstId = await registerAndValidate('comision-primera');
+    const race = await Promise.all([1, 2].map(() => request(server())
+      .patch(`/api/finanzas/pagos/${firstId}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' })));
+    expect(race.map(result => result.status).sort((a, b) => a - b)).toEqual([200, 409]);
+    const first = await prisma.comisiones.findMany({ where: { pago_id: firstId }, include: { conceptos_dispersion: true } });
+    expect(first).toHaveLength(2);
+    expect(first.find(row => row.conceptos_dispersion.nombre === 'Asesor')?.monto_comision.toFixed(2)).toBe('12.50');
+    expect(first.find(row => row.conceptos_dispersion.nombre === 'Empresa')?.monto_comision.toFixed(2)).toBe('87.50');
+    const companyCommission = first.find(row => row.conceptos_dispersion.nombre === 'Empresa')!;
+    const proof = Buffer.from('%PDF-1.4\ncomprobante-dispersion-prueba\n%%EOF');
+    const confirm = (commissionId: string, key: string, reference: string, token: string, contents = proof) => request(server())
+      .put(`/api/finanzas/comisiones/${commissionId}/dispersar`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('idempotency_key', key)
+      .field('referencia_transferencia', reference)
+      .attach('file', contents, { filename: 'comprobante.pdf', contentType: 'application/pdf' });
+    await request(server()).put(`/api/finanzas/comisiones/${companyCommission.id}/dispersar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ comentario: 'No representa salida' }).expect(400);
+    const filesBeforeRejectedDispersion = (await readdir('storage/postgres-tests')).length;
+    await confirm(companyCommission.id, randomUUID(), 'REF-EMPRESA-TEST', adminToken).expect(409);
+    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeRejectedDispersion);
+    expect(await prisma.dispersiones_comision.count({ where: { comision_id: companyCommission.id } })).toBe(0);
+    await confirm(first.find(row => row.conceptos_dispersion.nombre === 'Asesor')!.id, randomUUID(), 'REF-SIN-PERMISO', advisorToken).expect(403);
+    await request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`).send(config(receiver.body.id, '20.0')).expect(200);
+    const secondId = await registerAndValidate('comision-segunda');
+    await request(server()).patch(`/api/finanzas/pagos/${secondId}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const second = await prisma.comisiones.findFirstOrThrow({ where: { pago_id: secondId, concepto_id: concept.id } });
+    expect(second.monto_comision.toFixed(2)).toBe('20.00');
+    expect((await prisma.comisiones.findFirstOrThrow({ where: { pago_id: firstId, concepto_id: concept.id } })).monto_comision.toFixed(2)).toBe('12.50');
+    const imssConcept = await prisma.conceptos_dispersion.findUniqueOrThrow({ where: { nombre: 'IMSS' } });
+    await request(server()).put(`/api/finanzas/contratos/${otherServiceContractId}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ configuracion: [config(receiver.body.id, '15.0').configuracion[0],
+        { concepto_id: imssConcept.id, valor: '5.0' }] }).expect(200);
+    const otherContractPaymentId = await registerAndValidate('comision-otro-contrato', otherServiceContractId);
+    await request(server()).patch(`/api/finanzas/pagos/${otherContractPaymentId}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const filtered = await request(server()).get('/api/finanzas/comisiones')
+      .query({ contrato_id: otherServiceContractId })
+      .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(filtered.body.total).toBe(1);
+    expect(filtered.body.data[0].pagos.contratos.id).toBe(otherServiceContractId);
+    const own = await request(server()).get('/api/finanzas/comisiones')
+      .query({ contrato_id: contractId })
+      .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(own.body.data.some((row: { id: string }) => row.id === second.id)).toBe(true);
+    expect(own.body.data.every((row: { concepto_id: number }) => row.concepto_id === concept.id)).toBe(true);
+    expect(own.body.data.every((row: { pagos: { contratos: { id: string } } }) => row.pagos.contratos.id === contractId)).toBe(true);
+    const unrelated = await request(server()).get('/api/finanzas/comisiones')
+      .query({ contrato_id: contractId })
+      .set('Authorization', `Bearer ${otherToken}`).expect(200);
+    expect(unrelated.body.total).toBe(0);
+    await request(server()).put(`/api/finanzas/comisiones/${second.id}/dispersar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(400);
+    await confirm(second.id, 'clave-inválida', 'REF-TEST-SEGUNDA', adminToken).expect(400);
+    await confirm(second.id, randomUUID(), ' ', adminToken).expect(400);
+    const financialToken = await tokenFor(financialId);
+    const operationKey = randomUUID();
+    await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken, Buffer.from('archivo inválido')).expect(400);
+    const filesBeforeConfirmation = (await readdir('storage/postgres-tests')).length;
+    const confirmations = await Promise.all([adminToken, financialToken].map(token =>
+      confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', token)));
+    expect(confirmations.map(result => result.status).sort((a, b) => a - b)).toEqual([200, 200]);
+    expect(confirmations[0].body).toEqual(confirmations[1].body);
+    expect(confirmations[0].body).toMatchObject({ comision_id: second.id, referencia_transferencia: 'REF-TEST-SEGUNDA', monto_confirmado: '20.00' });
+    expect(confirmations[0].body.comprobante_path).toBeUndefined();
+    const dispersed = await prisma.estados_comisiones.findUniqueOrThrow({ where: { nombre: 'Dispersada' } });
+    expect(await prisma.historial_estados_comisiones.count({ where: { comision_id: second.id, estado_nuevo_id: dispersed.id } })).toBe(1);
+    expect(await prisma.dispersiones_comision.count({ where: { comision_id: second.id } })).toBe(1);
+    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeConfirmation + 1);
+    expect((await prisma.comisiones.findUniqueOrThrow({ where: { id: second.id }, include: { estados_comisiones: true } })).estados_comisiones.nombre).toBe('Dispersada');
+    const filesBeforeRetry = (await readdir('storage/postgres-tests')).length;
+    const retry = await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken).expect(200);
+    expect(retry.body).toEqual(confirmations[0].body);
+    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeRetry);
+    await confirm(second.id, operationKey, 'REF-DIFERENTE', adminToken).expect(409);
+    await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken,
+      Buffer.from('%PDF-1.4\ncontenido-distinto\n%%EOF')).expect(409);
+    await confirm(second.id, randomUUID(), 'REF-OTRA-CLAVE', adminToken).expect(409);
+    const proofDownload = await request(server())
+      .get(`/api/finanzas/dispersiones-comision/${confirmations[0].body.id}/comprobante`)
+      .set('Authorization', `Bearer ${adminToken}`).expect(200);
+    expect(proofDownload.headers['content-type']).toMatch(/application\/pdf/);
+    expect(proofDownload.headers['cache-control']).toBe('private, no-store');
+    expect(proofDownload.body).toEqual(proof);
+    await request(server()).get(`/api/finanzas/dispersiones-comision/${confirmations[0].body.id}/comprobante`)
+      .set('Authorization', `Bearer ${advisorToken}`).expect(403);
+    await request(server()).get(`/api/finanzas/dispersiones-comision/${confirmations[0].body.id}/comprobante`).expect(401);
+    const brokerConcept = await prisma.conceptos_dispersion.findUniqueOrThrow({ where: { nombre: 'Bróker' } });
+    const broker = await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ concepto_id: brokerConcept.id, nombre_externo: `${prefix} Bróker` }).expect(201);
+    receiverIds.push(broker.body.id);
+    const [assignment, deactivation] = await Promise.all([
+      request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ configuracion: [config(receiver.body.id, '20.0').configuracion[0],
+          { concepto_id: brokerConcept.id, receptor_dispersion_id: broker.body.id, valor: '10.0' }] }),
+      request(server()).patch(`/api/finanzas/receptores-dispersion/${broker.body.id}/desactivar`)
+        .set('Authorization', `Bearer ${adminToken}`).send({}),
+    ]);
+    expect([[200, 409], [400, 200]]).toContainEqual([assignment.status, deactivation.status]);
+    const brokerState = await prisma.receptores_dispersion.findUniqueOrThrow({ where: { id: broker.body.id } });
+    const activeAssignment = await prisma.contrato_dispersion_detalle.count({ where: { contrato_id: contractId,
+      receptor_dispersion_id: broker.body.id, activo: true } });
+    expect(brokerState.activo ? activeAssignment === 1 : activeAssignment === 0).toBe(true);
+  });
+
+  it('registra destinos manuales, conserva sus snapshots y aísla al asesor', async () => {
+    const adminToken = await tokenFor(adminId);
+    const advisorToken = await tokenFor(advisorId);
+    const target = await contract(advisorId, 'destinos-manuales');
+    const concepts = Object.fromEntries((await prisma.conceptos_dispersion.findMany({ where: { nombre: { in: ['Director', 'Gerente', 'Bróker', 'IMSS', 'Referidor'] } } })).map(c => [c.nombre, c.id]));
+    const rows: Array<{ concepto_id: number; receptor_dispersion_id?: string; valor: string }> = [];
+    for (const [name, value] of [['Director', '10.0'], ['Gerente', '5.0'], ['Bróker', '2.5']] as const) {
+      const created = await request(server()).post('/api/finanzas/receptores-dispersion')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ concepto_id: concepts[name], nombre_externo: `${prefix} Manual ${name}` }).expect(201);
+      receiverIds.push(created.body.id);
+      rows.push({ concepto_id: concepts[name], receptor_dispersion_id: created.body.id, valor: value });
+    }
+    await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ concepto_id: concepts.Director, nombre_externo: 'Sin permiso' }).expect(403);
+    await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ concepto_id: concepts.Director, usuario_id: advisorId }).expect(400);
+    await request(server()).post('/api/finanzas/receptores-dispersion')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ concepto_id: concepts.Referidor, nombre_externo: 'Texto sin cliente' }).expect(409);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [{ concepto_id: concepts.Referidor, valor: '5.0' }] }).expect(409);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [...rows, { concepto_id: concepts.IMSS, valor: '1.0' }] }).expect(400);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ configuracion: rows }).expect(403);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: rows }).expect(200);
+    const payment = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(target), monto: '100.00' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${payment.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nmanual\n%%EOF'), { filename: 'manual.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${payment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const before = await prisma.comisiones.findMany({ where: { pago_id: payment.body.id }, include: { conceptos_dispersion: true } });
+    expect(before).toHaveLength(4);
+    expect(before.find(x => x.conceptos_dispersion.nombre === 'Empresa')?.monto_comision.toFixed(2)).toBe('82.50');
+    expect(before.find(x => x.conceptos_dispersion.nombre === 'Director')?.receptor_nombre_snapshot).toBe(`${prefix} Manual Director`);
+    expect(before.find(x => x.conceptos_dispersion.nombre === 'Gerente')?.receptor_nombre_snapshot).toBe(`${prefix} Manual Gerente`);
+    expect(before.find(x => x.conceptos_dispersion.nombre === 'Bróker')?.receptor_nombre_snapshot).toBe(`${prefix} Manual Bróker`);
+    expect(before.every(x => x.beneficiario_id === null)).toBe(true);
+    const directorCommission = before.find(x => x.conceptos_dispersion.nombre === 'Director')!;
+    await request(server()).put(`/api/finanzas/comisiones/${directorCommission.id}/dispersar`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('idempotency_key', randomUUID()).field('referencia_transferencia', 'NO-TRANSFERENCIA')
+      .attach('file', Buffer.from('%PDF-1.4\nno-dispersar\n%%EOF'), { filename: 'no.pdf', contentType: 'application/pdf' }).expect(409);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [
+        { concepto_id: concepts.Director, valor: '20.0' },
+        { concepto_id: concepts.Gerente, valor: '5.0' },
+        { concepto_id: concepts['Bróker'], valor: '2.5' },
+      ] }).expect(200);
+    expect((await prisma.comisiones.findFirstOrThrow({ where: { pago_id: payment.body.id, concepto_id: concepts.Director } })).receptor_nombre_snapshot).toBe(`${prefix} Manual Director`);
+    const another = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(target), monto: '100.00', referencia_pago: 'manual-segundo' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${another.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nmanual-segundo\n%%EOF'), { filename: 'manual2.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${another.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const after = await prisma.comisiones.findFirstOrThrow({ where: { pago_id: another.body.id, concepto_id: concepts.Director } });
+    expect(after.receptor_nombre_snapshot).toBeNull();
+    expect(after.monto_comision.toFixed(2)).toBe('20.00');
+    const advisorView = await request(server()).get('/api/finanzas/comisiones')
+      .query({ contrato_id: target }).set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(advisorView.body.total).toBe(0);
+    expect(await prisma.comisiones.count({ where: { pago_id: payment.body.id } })).toBe(4);
+  });
+
+  it('bloquea validación M10 sin IMSS y permite el porcentaje explícito sin receptor', async () => {
+    const adminToken = await tokenFor(adminId);
+    const advisorToken = await tokenFor(advisorId);
+    const m10 = await prisma.servicios.findUniqueOrThrow({ where: { codigo_folio: 'M10' } });
+    const target = await contract(advisorId, 'imss-obligatorio', m10.id);
+    const imss = await prisma.conceptos_dispersion.findUniqueOrThrow({ where: { nombre: 'IMSS' } });
+    const payment = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(target), monto: '100.00' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${payment.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nimss\n%%EOF'), { filename: 'imss.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${payment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(409);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [] }).expect(400);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [{ concepto_id: imss.id, valor: '0.0' }] }).expect(400);
+    await request(server()).put(`/api/finanzas/contratos/${target}/comisiones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ configuracion: [{ concepto_id: imss.id, valor: '8.5' }] }).expect(200);
+    await request(server()).patch(`/api/finanzas/pagos/${payment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const rows = await prisma.comisiones.findMany({ where: { pago_id: payment.body.id }, include: { conceptos_dispersion: true } });
+    expect(rows.find(x => x.conceptos_dispersion.nombre === 'IMSS')).toMatchObject({ receptor_dispersion_id: null, beneficiario_id: null, receptor_nombre_snapshot: null });
+    expect(rows.find(x => x.conceptos_dispersion.nombre === 'IMSS')?.monto_comision.toFixed(2)).toBe('8.50');
+    expect(rows.find(x => x.conceptos_dispersion.nombre === 'Empresa')?.monto_comision.toFixed(2)).toBe('91.50');
+    for (const code of ['M40', 'M40R'] as const) {
+      const service = await prisma.servicios.create({ data: { nombre: `${prefix} ${code}`, codigo_folio: code, activo: true } });
+      serviceIds.push(service.id);
+      const modalContract = await contract(advisorId, `imss-${code}`, service.id);
+      await request(server()).put(`/api/finanzas/contratos/${modalContract}/comisiones`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ configuracion: [{ concepto_id: imss.id, valor: '7.0' }] }).expect(200);
+      const modalPayment = await request(server()).post('/api/finanzas/pagos')
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .send({ ...paymentBody(modalContract), monto: '100.00' }).expect(201);
+      await request(server()).post(`/api/finanzas/pagos/${modalPayment.body.id}/evidencias`)
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .attach('file', Buffer.from(`%PDF-1.4\n${code}\n%%EOF`), { filename: `${code}.pdf`, contentType: 'application/pdf' }).expect(201);
+      await request(server()).patch(`/api/finanzas/pagos/${modalPayment.body.id}/estado`)
+        .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+      const modalImss = await prisma.comisiones.findFirstOrThrow({ where: { pago_id: modalPayment.body.id, concepto_id: imss.id } });
+      expect(modalImss.monto_comision.toFixed(2)).toBe('7.00');
+      expect(modalImss.receptor_dispersion_id).toBeNull();
+    }
+  });
+
+  it('reserva y reutiliza un periodo solo tras cancelar, conserva detalles y cierra sin duplicar ingresos', async () => {
+    const adminToken = await tokenFor(adminId);
+    const advisorToken = await tokenFor(advisorId);
+    const payment = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(contractId), fecha_pago: '2026-11-20T15:00:00.000Z', monto: '73.25' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${payment.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: 'corte.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${payment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const create = () => request(server()).post('/api/finanzas/cortes')
+      .set('Authorization', `Bearer ${adminToken}`).send({ periodo_inicio: '2026-11-20' });
+    const attempts = await Promise.all([create(), create()]);
+    expect(attempts.map(result => result.status).sort((a, b) => a - b)).toEqual([201, 409]);
+    const firstCut = attempts.find(result => result.status === 201)!.body;
+    cutIds.push(firstCut.id);
+    await request(server()).get(`/api/finanzas/cortes/${firstCut.id}/preparacion`)
+      .set('Authorization', `Bearer ${adminToken}`).expect(200);
+    const generated = await request(server()).post(`/api/finanzas/cortes/${firstCut.id}/generar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(200);
+    expect(generated.body.resumen).toMatchObject({ cantidad_pagos: 1, total_ingresos: '73.25' });
+    expect(generated.body.resumen.cantidad_comisiones).toBeGreaterThan(0);
+    await request(server()).post(`/api/finanzas/cortes/${firstCut.id}/generar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(409);
+    await request(server()).post(`/api/finanzas/cortes/${firstCut.id}/cancelar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ comentario: 'Corte ficticio cancelado' }).expect(200);
+    const historical = await request(server()).get(`/api/finanzas/cortes/${firstCut.id}`)
+      .set('Authorization', `Bearer ${adminToken}`).expect(200);
+    expect(historical.body.resumen).toMatchObject({ cantidad_pagos: 1, total_ingresos: '73.25' });
+    const secondCut = await create();
+    expect(secondCut.status).toBe(201);
+    cutIds.push(secondCut.body.id);
+    const reopened = await request(server()).post(`/api/finanzas/cortes/${secondCut.body.id}/generar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(200);
+    expect(reopened.body.resumen).toMatchObject({ cantidad_pagos: 1, total_ingresos: '73.25' });
+    await request(server()).post(`/api/finanzas/cortes/${secondCut.body.id}/cerrar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(200);
+    await request(server()).post(`/api/finanzas/cortes/${secondCut.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({}).expect(409);
+    expect(await prisma.cortes_pagos_reservados.count({ where: { pago_id: payment.body.id } })).toBe(1);
+  });
+
+  it('excluye asesores y auxiliar administrativo de cortes y limita la consulta de comisiones', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const financialToken = await tokenFor(financialId);
+    const auxiliaryRole = await role('auxiliar administrativo');
+    const auxiliaryId = await user(auxiliaryRole, 'auxiliar-comisiones');
+    const auxiliaryToken = await tokenFor(auxiliaryId);
+    await request(server()).get('/api/finanzas/cortes').expect(401);
+    await request(server()).get('/api/finanzas/comisiones').expect(401);
+    await request(server()).get('/api/finanzas/cortes')
+      .set('Authorization', `Bearer ${advisorToken}`).expect(403);
+    await request(server()).get('/api/finanzas/cortes')
+      .set('Authorization', `Bearer ${auxiliaryToken}`).expect(403);
+    await request(server()).get('/api/finanzas/comisiones')
+      .set('Authorization', `Bearer ${auxiliaryToken}`).expect(403);
+    await request(server()).get('/api/finanzas/cortes')
+      .set('Authorization', `Bearer ${financialToken}`).expect(200);
+    await request(server()).get('/api/finanzas/comisiones')
+      .set('Authorization', `Bearer ${financialToken}`).expect(200);
   });
 });

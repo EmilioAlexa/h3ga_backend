@@ -48,6 +48,8 @@ async function main() {
         (SELECT COUNT(*)::int FROM pagos_programados p JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS scheduled,
         (SELECT COUNT(*)::int FROM evidencias_pago e JOIN pagos p ON p.id=e.pago_id JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS evidences,
         (SELECT COUNT(*)::int FROM comisiones x JOIN pagos p ON p.id=x.pago_id JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS commissions,
+        (SELECT COUNT(*)::int FROM dispersiones_comision d JOIN comisiones x ON x.id=d.comision_id JOIN pagos p ON p.id=x.pago_id JOIN contratos c ON c.id=p.contrato_id WHERE c.folio LIKE 'PAYE2E-%') AS disbursements,
+        (SELECT COUNT(*)::int FROM receptores_dispersion r JOIN usuarios u ON u.id=r.creado_por WHERE u.correo_electronico LIKE 'paye2e-%') AS receivers,
         (SELECT COUNT(*)::int FROM formas_pago WHERE nombre LIKE 'PAYE2E-%') AS methods,
         (SELECT COUNT(*)::int FROM tipos_cobro WHERE nombre LIKE 'PAYE2E-%') AS collection_types,
         (SELECT COUNT(*)::int FROM servicios WHERE nombre LIKE 'PAYE2E-%') AS services,
