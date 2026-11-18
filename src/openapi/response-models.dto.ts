@@ -547,6 +547,30 @@ export class PagoProgramadoRespuestaDto {
   @ApiPropertyOptional({ nullable: true })
   estado_id?: number | null;
 
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true, description: 'Estado operativo calculado a partir de cancelación persistida, importe, abonos Validados y fecha de vencimiento en America/Cancun. Puede ser null para datos históricos incompletos o anomalías.' })
+  estado_operativo?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Actor que canceló la obligación.' })
+  cancelado_por?: string | null;
+
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  cancelado_en?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  motivo_cancelacion?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Justificación persistida de una coincidencia permitida.' })
+  justificacion_duplicado?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Motivo particular de una penalización APD.' })
+  motivo_penalizacion?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: ['TOPADO', 'NO_TOPADO'] })
+  clasificacion_tope_apd?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'Decimal recibido por el beneficiario APD; distinto del pago a H3GA.' })
+  monto_recibido_beneficiario_apd?: string | null;
+
   @ApiProperty({ type: 'object', additionalProperties: true })
   contratos: Record<string, unknown>;
 

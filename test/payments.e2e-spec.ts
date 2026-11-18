@@ -28,6 +28,7 @@ describe('Pagos con PostgreSQL aislado', () => {
   let serviceId: number;
   let contractStateId: number;
   let penaltyTypeId: number;
+  let principalTypeId: number;
   let firstPaymentId: string;
   const roleIds: number[] = [];
   const userIds: string[] = [];
@@ -147,6 +148,9 @@ describe('Pagos con PostgreSQL aislado', () => {
     const penalty = await prisma.tipos_cobro.create({ data: { nombre: 'Penalización', activo: true } });
     penaltyTypeId = penalty.id;
     typeIds.push(penalty.id);
+    const principal = await prisma.tipos_cobro.create({ data: { nombre: `${prefix} Principal`, activo: true } });
+    principalTypeId = principal.id;
+    typeIds.push(principal.id);
   }, 30_000);
 
   afterAll(async () => {
@@ -210,15 +214,18 @@ describe('Pagos con PostgreSQL aislado', () => {
     await request(server()).post('/api/finanzas/pagos-programados')
       .set('Authorization', `Bearer ${token}`)
       .send({ contrato_id: otherServiceContractId, numero_pago: 1, tipo_cobro_id: penaltyTypeId,
-        fecha_esperada: '2026-11-18', monto_esperado: '200.00' }).expect(400);
+        fecha_esperada: '2026-11-18', fecha_vencimiento: '2026-11-20', monto_esperado: '200.00',
+        motivo_penalizacion: 'Incumplimiento ficticio' }).expect(400);
     await request(server()).post('/api/finanzas/pagos-programados')
       .set('Authorization', `Bearer ${token}`)
       .send({ contrato_id: contractId, numero_pago: 1, tipo_cobro_id: penaltyTypeId,
-        fecha_esperada: '2026-11-18' }).expect(400);
+        fecha_esperada: '2026-11-18', fecha_vencimiento: '2026-11-20',
+        motivo_penalizacion: 'Incumplimiento ficticio' }).expect(400);
     const scheduled = await request(server()).post('/api/finanzas/pagos-programados')
       .set('Authorization', `Bearer ${token}`)
       .send({ contrato_id: contractId, numero_pago: 1, tipo_cobro_id: penaltyTypeId,
-        fecha_esperada: '2026-11-18', monto_esperado: '200.00' }).expect(201);
+        fecha_esperada: '2026-11-18', fecha_vencimiento: '2026-11-20', monto_esperado: '200.00',
+        motivo_penalizacion: 'Incumplimiento ficticio' }).expect(201);
     expect(scheduled.body).toMatchObject({
       monto_abonado_validado: '0.00', saldo_pendiente_confirmado: '200.00',
       motivo_saldo_no_disponible: null,
@@ -481,5 +488,246 @@ describe('Pagos con PostgreSQL aislado', () => {
       monto_abonado_validado: '11.00', saldo_pendiente_confirmado: null,
       motivo_saldo_no_disponible: 'SOBREPAGO',
     });
+  });
+
+  it('exige vencimiento y expone Pendiente, Vencido y Cubierto con filtro y paginación coherentes', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const adminToken = await tokenFor(adminId);
+    const base = { contrato_id: otherServiceContractId, monto_esperado: '10.00' };
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...base, numero_pago: 91, fecha_esperada: '2099-01-01' }).expect(400);
+    const pending = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...base, numero_pago: 91, fecha_esperada: '2099-01-01', fecha_vencimiento: '2099-01-02' }).expect(201);
+    const expired = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...base, numero_pago: 92, fecha_esperada: '2000-01-01', fecha_vencimiento: '2000-01-02' }).expect(201);
+    const covered = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...base, numero_pago: 93, fecha_esperada: '2000-01-03', fecha_vencimiento: '2000-01-04' }).expect(201);
+    expect(pending.body.estado_operativo.nombre).toBe('Pendiente');
+    expect(expired.body.estado_operativo.nombre).toBe('Vencido');
+    const payment = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(otherServiceContractId), pago_programado_id: covered.body.id, monto: '10.00' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${payment.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: 'cubierto.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${payment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    const coveredResult = await request(server()).get(`/api/finanzas/pagos-programados/${covered.body.id}`)
+      .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(coveredResult.body).toMatchObject({ saldo_pendiente_confirmado: '0.00', estado_operativo: { nombre: 'Cubierto' } });
+    for (const [name, expectedId] of [['Pendiente', pending.body.id], ['Vencido', expired.body.id], ['Cubierto', covered.body.id]] as const) {
+      const state = await prisma.estados_pago_programado.findUniqueOrThrow({ where: { nombre: name } });
+      const list = await request(server()).get('/api/finanzas/pagos-programados')
+        .query({ contrato_id: otherServiceContractId, estado_id: state.id, page: 1, limit: 1 })
+        .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+      expect(list.body.pagination).toMatchObject({ total: 1, totalPages: 1 });
+      expect(list.body.data[0]).toMatchObject({ id: expectedId, estado_operativo: { id: state.id, nombre: name } });
+    }
+    await request(server()).patch(`/api/finanzas/pagos-programados/${pending.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ estado_id: (await prisma.estados_pago_programado.findUniqueOrThrow({ where: { nombre: 'Cubierto' } })).id }).expect(409);
+  });
+
+  it('requiere justificación persistida para duplicados, también al editar y bajo concurrencia', async () => {
+    const token = await tokenFor(advisorId);
+    const base = { contrato_id: contractId, fecha_esperada: '2031-04-01',
+      fecha_vencimiento: '2031-04-02', monto_esperado: '321.45' };
+    const first = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`).send({ ...base, numero_pago: 101 }).expect(201);
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`).send({ ...base, numero_pago: 102 }).expect(409);
+    const justified = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, numero_pago: 102, justificacion_duplicado: 'Dos conceptos del mismo cobro ficticio' }).expect(201);
+    expect(justified.body.justificacion_duplicado).toContain('Dos conceptos');
+    const other = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, numero_pago: 103, monto_esperado: '300.00' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos-programados/${other.body.id}`)
+      .set('Authorization', `Bearer ${token}`).send({ monto_esperado: '321.45' }).expect(409);
+    await request(server()).patch(`/api/finanzas/pagos-programados/${other.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ monto_esperado: '321.45', justificacion_duplicado: 'Registro complementario ficticio' }).expect(200);
+    const race = { ...base, fecha_esperada: '2031-05-01', fecha_vencimiento: '2031-05-02' };
+    const responses = await Promise.all([111, 112].map((numero_pago) => request(server())
+      .post('/api/finanzas/pagos-programados').set('Authorization', `Bearer ${token}`)
+      .send({ ...race, numero_pago })));
+    expect(responses.map((response) => response.status).sort((a, b) => a - b)).toEqual([201, 409]);
+    expect(await prisma.pagos_programados.count({ where: { contrato_id: contractId,
+      fecha_esperada: new Date('2031-05-01'), monto_esperado: '321.45' } })).toBe(1);
+    expect(first.body.justificacion_duplicado).toBeNull();
+    const differentConcept = { ...base, fecha_esperada: '2031-06-01', fecha_vencimiento: '2031-06-02', monto_esperado: '123.45' };
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...differentConcept, numero_pago: 113, tipo_cobro_id: principalTypeId }).expect(201);
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...differentConcept, numero_pago: 114, tipo_cobro_id: penaltyTypeId,
+        motivo_penalizacion: 'Concepto distinto ficticio' }).expect(201);
+  });
+
+  it('exige motivo de penalización y conserva TOPADO/NO_TOPADO e importe del beneficiario por cobro', async () => {
+    const token = await tokenFor(advisorId);
+    const base = { contrato_id: contractId, tipo_cobro_id: penaltyTypeId,
+      fecha_esperada: '2032-02-01', fecha_vencimiento: '2032-02-02', monto_esperado: '100.00' };
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`).send({ ...base, numero_pago: 121 }).expect(400);
+    const topado = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, numero_pago: 121, motivo_penalizacion: 'Incumplimiento ficticio A',
+        clasificacion_tope_apd: 'TOPADO', monto_recibido_beneficiario_apd: '2500.00' }).expect(201);
+    const noTopado = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, numero_pago: 122, fecha_esperada: '2032-03-01', fecha_vencimiento: '2032-03-02',
+        motivo_penalizacion: 'Incumplimiento ficticio B', clasificacion_tope_apd: 'NO_TOPADO',
+        monto_recibido_beneficiario_apd: '2700.00' }).expect(201);
+    expect(topado.body).toMatchObject({ clasificacion_tope_apd: 'TOPADO', monto_recibido_beneficiario_apd: '2500', monto_esperado: '100' });
+    expect(noTopado.body).toMatchObject({ clasificacion_tope_apd: 'NO_TOPADO', monto_recibido_beneficiario_apd: '2700' });
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, contrato_id: otherServiceContractId, numero_pago: 123,
+        clasificacion_tope_apd: 'TOPADO', motivo_penalizacion: 'Incorrecta' }).expect(400);
+    await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, contrato_id: otherServiceContractId, tipo_cobro_id: principalTypeId,
+        numero_pago: 124, clasificacion_tope_apd: 'TOPADO' }).expect(400);
+  });
+
+  it('rechaza sobrepago y monto esperado nulo sin cambiar estado ni generar comisión', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const adminToken = await tokenFor(adminId);
+    const obligation = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ contrato_id: contractId, numero_pago: 131, fecha_vencimiento: '2033-01-01',
+        monto_esperado: '100.00' }).expect(201);
+    const makePayment = async (amount: string) => {
+      const created = await request(server()).post('/api/finanzas/pagos')
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .send({ ...paymentBody(contractId), pago_programado_id: obligation.body.id, monto: amount }).expect(201);
+      await request(server()).post(`/api/finanzas/pagos/${created.body.id}/evidencias`)
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: 'abono.pdf', contentType: 'application/pdf' }).expect(201);
+      return created.body.id as string;
+    };
+    const first = await makePayment('60.00');
+    const second = await makePayment('50.00');
+    await request(server()).patch(`/api/finanzas/pagos/${first}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(200);
+    await request(server()).patch(`/api/finanzas/pagos/${second}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(409);
+    const pending = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: 'Pendiente de revisión financiera' } });
+    expect(await prisma.pagos.count({ where: { id: second, estado_pago_id: pending.id } })).toBe(1);
+    expect(await prisma.comisiones.count({ where: { pago_id: second } })).toBe(0);
+    const unknown = await prisma.pagos_programados.create({ data: { contrato_id: contractId, numero_pago: 132, monto_esperado: null } });
+    const unknownPayment = await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(contractId), pago_programado_id: unknown.id, monto: '1.00' }).expect(201);
+    await request(server()).post(`/api/finanzas/pagos/${unknownPayment.body.id}/evidencias`)
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: 'historico.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos/${unknownPayment.body.id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' }).expect(409);
+  });
+
+  it('serializa validaciones de dos pagos distintos sobre la misma obligación', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const adminToken = await tokenFor(adminId);
+    const obligation = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ contrato_id: contractId, numero_pago: 141, fecha_vencimiento: '2034-01-01',
+        monto_esperado: '100.00' }).expect(201);
+    const ids: string[] = [];
+    for (const n of [1, 2]) {
+      const created = await request(server()).post('/api/finanzas/pagos')
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .send({ ...paymentBody(contractId), pago_programado_id: obligation.body.id, monto: '60.00',
+          referencia_pago: `carrera-${n}` }).expect(201);
+      ids.push(created.body.id);
+      await request(server()).post(`/api/finanzas/pagos/${created.body.id}/evidencias`)
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .attach('file', Buffer.from('%PDF-1.4\nfixture\n%%EOF'), { filename: `carrera-${n}.pdf`, contentType: 'application/pdf' }).expect(201);
+    }
+    const results = await Promise.all(ids.map((id) => request(server())
+      .patch(`/api/finanzas/pagos/${id}/estado`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ accion: 'validar' })));
+    expect(results.map((result) => result.status).sort((a, b) => a - b)).toEqual([200, 409]);
+    const validated = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: 'Validado' } });
+    expect(await prisma.pagos.count({ where: { id: { in: ids }, estado_pago_id: validated.id } })).toBe(1);
+    expect(await prisma.comisiones.count({ where: { pago_id: { in: ids } } })).toBe(1);
+    const detail = await request(server()).get(`/api/finanzas/pagos-programados/${obligation.body.id}`)
+      .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(detail.body).toMatchObject({ monto_abonado_validado: '60.00', saldo_pendiente_confirmado: '40.00' });
+  });
+
+  it('cancela con auditoría solo por administración y bloquea pagos posteriores', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const financialToken = await tokenFor(financialId);
+    const adminToken = await tokenFor(adminId);
+    const created = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ contrato_id: contractId, numero_pago: 151, fecha_vencimiento: '2035-01-01', monto_esperado: '30.00' }).expect(201);
+    await request(server()).patch(`/api/finanzas/pagos-programados/${created.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${advisorToken}`).send({ motivo: 'Intento asesor' }).expect(403);
+    await request(server()).patch(`/api/finanzas/pagos-programados/${created.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${financialToken}`).send({ motivo: ' ' }).expect(400);
+    const cancelled = await request(server()).patch(`/api/finanzas/pagos-programados/${created.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${financialToken}`).send({ motivo: 'Obligación ficticia anulada' }).expect(200);
+    expect(cancelled.body).toMatchObject({ contrato_id: contractId, cancelado_por: financialId,
+      motivo_cancelacion: 'Obligación ficticia anulada', estado_operativo: { nombre: 'Cancelado' },
+      saldo_pendiente_confirmado: null, motivo_saldo_no_disponible: 'CANCELADO' });
+    expect(new Date(cancelled.body.cancelado_en).getTime()).toBeGreaterThan(0);
+    await request(server()).patch(`/api/finanzas/pagos-programados/${created.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ motivo: 'Segundo intento' }).expect(409);
+    await request(server()).post('/api/finanzas/pagos')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ ...paymentBody(contractId), pago_programado_id: created.body.id }).expect(409);
+    expect(await prisma.pagos.count({ where: { pago_programado_id: created.body.id } })).toBe(0);
+    const cancelledState = await prisma.estados_pago_programado.findUniqueOrThrow({ where: { nombre: 'Cancelado' } });
+    const list = await request(server()).get('/api/finanzas/pagos-programados')
+      .query({ contrato_id: contractId, estado_id: cancelledState.id })
+      .set('Authorization', `Bearer ${advisorToken}`).expect(200);
+    expect(list.body.data.some((row: { id: string }) => row.id === created.body.id)).toBe(true);
+    const adminCreated = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ contrato_id: contractId, numero_pago: 152, fecha_vencimiento: '2035-01-02',
+        monto_esperado: '31.00' }).expect(201);
+    const adminCancelled = await request(server()).patch(`/api/finanzas/pagos-programados/${adminCreated.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ motivo: 'Administración ficticia' }).expect(200);
+    expect(adminCancelled.body.cancelado_por).toBe(adminId);
+  });
+
+  it('rechaza cancelación ante cualquier pago vinculado y serializa la carrera con el alta', async () => {
+    const advisorToken = await tokenFor(advisorId);
+    const adminToken = await tokenFor(adminId);
+    for (const [n, name] of ['Pendiente de revisión financiera', 'Pendiente de autorización', 'Rechazado', 'Validado', 'Cancelado'].entries()) {
+      const obligation = await request(server()).post('/api/finanzas/pagos-programados')
+        .set('Authorization', `Bearer ${advisorToken}`)
+        .send({ contrato_id: contractId, numero_pago: 160 + n,
+          fecha_vencimiento: '2036-01-01', monto_esperado: '20.00' }).expect(201);
+      const state = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: name } });
+      await prisma.pagos.create({ data: { contrato_id: contractId, pago_programado_id: obligation.body.id,
+        forma_pago_id: transferId, estado_pago_id: state.id, monto: '1.00', registrado_por: advisorId } });
+      await request(server()).patch(`/api/finanzas/pagos-programados/${obligation.body.id}/cancelar`)
+        .set('Authorization', `Bearer ${adminToken}`).send({ motivo: 'No corresponde' }).expect(409);
+    }
+    const race = await request(server()).post('/api/finanzas/pagos-programados')
+      .set('Authorization', `Bearer ${advisorToken}`)
+      .send({ contrato_id: contractId, numero_pago: 170, fecha_vencimiento: '2036-02-01',
+        monto_esperado: '20.00' }).expect(201);
+    const [registration, cancellation] = await Promise.all([
+      request(server()).post('/api/finanzas/pagos').set('Authorization', `Bearer ${advisorToken}`)
+        .send({ ...paymentBody(contractId), pago_programado_id: race.body.id, monto: '5.00' }),
+      request(server()).patch(`/api/finanzas/pagos-programados/${race.body.id}/cancelar`)
+        .set('Authorization', `Bearer ${adminToken}`).send({ motivo: 'Carrera ficticia' }),
+    ]);
+    expect([[201, 409], [409, 200]]).toContainEqual([registration.status, cancellation.status]);
+    const linked = await prisma.pagos.count({ where: { pago_programado_id: race.body.id } });
+    const row = await prisma.pagos_programados.findUniqueOrThrow({ where: { id: race.body.id }, include: { estados_pago_programado: true } });
+    expect(linked === 1 && row.estados_pago_programado?.nombre !== 'Cancelado' ||
+      linked === 0 && row.estados_pago_programado?.nombre === 'Cancelado').toBe(true);
   });
 });

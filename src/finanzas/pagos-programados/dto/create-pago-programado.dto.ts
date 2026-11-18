@@ -8,8 +8,11 @@ import {
   Matches,
   Max,
   Min,
+  IsEnum,
+  MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ClasificacionTopeApd } from '../../../generated/prisma/client';
 
 export class CreatePagoProgramadoDto {
   @ApiProperty({ format: 'uuid' })
@@ -42,11 +45,10 @@ export class CreatePagoProgramadoDto {
   @IsDate()
   fecha_esperada?: Date | null;
 
-  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
-  @IsOptional()
+  @ApiProperty({ type: String, format: 'date', description: 'Fecha límite de la obligación; obligatoria para nuevas programaciones.' })
   @Type(() => Date)
   @IsDate()
-  fecha_vencimiento?: Date | null;
+  fecha_vencimiento: Date;
 
   @ApiPropertyOptional({
     type: String,
@@ -64,5 +66,28 @@ export class CreatePagoProgramadoDto {
   @Type(() => Date)
   @IsDate()
   periodo?: Date | null;
+
+  @ApiPropertyOptional({ description: 'Justificación persistida cuando coincide contrato, fecha esperada e importe con otra obligación.', maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  justificacion_duplicado?: string | null;
+
+  @ApiPropertyOptional({ description: 'Motivo particular, obligatorio para el tipo Penalización APD.', maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  motivo_penalizacion?: string | null;
+
+  @ApiPropertyOptional({ enum: ClasificacionTopeApd, description: 'Clasificación por cobro APD; no calcula el límite.' })
+  @IsOptional()
+  @IsEnum(ClasificacionTopeApd)
+  clasificacion_tope_apd?: ClasificacionTopeApd | null;
+
+  @ApiPropertyOptional({ type: String, example: '1200.00', description: 'Importe recibido por el beneficiario APD, distinto del pago a H3GA.' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,10}(\.\d{1,2})?$/)
+  monto_recibido_beneficiario_apd?: string | null;
 
 }

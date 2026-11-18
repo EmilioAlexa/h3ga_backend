@@ -416,7 +416,7 @@ export class PagosService {
           );
           const programado = await tx.pagos_programados.findUnique({
             where: { id: dto.pago_programado_id },
-            select: { id: true, contrato_id: true },
+            select: { id: true, contrato_id: true, estados_pago_programado: { select: { nombre: true } } },
           });
           if (!programado) {
             throw new BadRequestException('El pago programado no existe');
@@ -425,6 +425,9 @@ export class PagosService {
             throw new BadRequestException(
               'El pago programado no pertenece al contrato indicado',
             );
+          }
+          if (programado.estados_pago_programado?.nombre === 'Cancelado') {
+            throw new ConflictException('No se pueden registrar pagos en una obligación cancelada');
           }
         }
 
@@ -481,6 +484,7 @@ export class PagosService {
             estado_pago_id: true,
             forma_pago_id: true,
             pago_programado_id: true,
+            monto: true,
             estados_pago: { select: { id: true, nombre: true } },
             formas_pago: { select: { id: true, nombre: true } },
           },
@@ -502,6 +506,26 @@ export class PagosService {
           dto.accion,
           usuario.roles.nombre,
         );
+        if (siguienteNombre === ESTADO_VALIDADO && pago.pago_programado_id) {
+          const obligation = await tx.pagos_programados.findUnique({
+            where: { id: pago.pago_programado_id },
+            select: { monto_esperado: true, estados_pago_programado: { select: { nombre: true } } },
+          });
+          if (!obligation || obligation.estados_pago_programado?.nombre === 'Cancelado') {
+            throw new ConflictException('La obligación no admite validación');
+          }
+          if (obligation.monto_esperado === null || obligation.monto_esperado.lte(0)) {
+            throw new ConflictException('La obligación no tiene un importe esperado válido');
+          }
+          const previous = await tx.pagos.findMany({
+            where: { pago_programado_id: pago.pago_programado_id, estados_pago: { is: { nombre: ESTADO_VALIDADO } } },
+            select: { monto: true },
+          });
+          const total = previous.reduce((sum, row) => sum.plus(row.monto), new Prisma.Decimal(pago.monto));
+          if (total.gt(obligation.monto_esperado)) {
+            throw new ConflictException('La validación excedería el importe esperado de la obligación');
+          }
+        }
         if (siguienteNombre === ESTADO_RECHAZADO && !dto.comentario?.trim()) {
           throw new BadRequestException('El rechazo requiere un motivo');
         }
