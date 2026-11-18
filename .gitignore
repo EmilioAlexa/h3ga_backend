@@ -182,3 +182,5 @@ docs/
 
 # Seed exclusivo para pruebas locales
 /prisma/seed.local.ts
+
+/AGENTS.md
