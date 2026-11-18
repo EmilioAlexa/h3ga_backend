@@ -237,7 +237,9 @@ export class ReportesFinancierosService {
   }
 
   private bucketSql(granularity: Granularity = 'mensual') {
-    const localDate = Prisma.sql`(p."fecha_pago" AT TIME ZONE ${TZ})`;
+    // Literal fijo del servidor: SELECT y GROUP BY deben contener la misma expresión SQL.
+    // Dos parámetros diferentes con el mismo valor no son equivalentes para GROUP BY en PostgreSQL.
+    const localDate = Prisma.sql`(p."fecha_pago" AT TIME ZONE 'America/Cancun')`;
     switch (granularity) {
       case 'semanal':
         // Weeks follow the financial cut calendar: Friday 00:00 through Thursday.

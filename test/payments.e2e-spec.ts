@@ -8,6 +8,8 @@ import { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
+import { Prisma } from '../src/generated/prisma/client';
+import { cancunToday } from '../src/finanzas/pagos-programados/scheduled-payment-status';
 import { StorageService } from '../src/finanzas/evidencias/storage/storage.service';
 
 const prefix = `PAYE2E-${randomUUID().slice(0, 12)}`;
@@ -1228,5 +1230,125 @@ describe('Pagos con PostgreSQL aislado', () => {
       .set('Authorization', `Bearer ${financialToken}`).expect(200);
     await request(server()).get('/api/finanzas/comisiones')
       .set('Authorization', `Bearer ${financialToken}`).expect(200);
+  });
+
+  it('concilia dashboard semanal con pagos validados y aísla el asesor sin duplicar cortes', async () => {
+    const url = '/api/finanzas/dashboard?semana=2026-11-13&limite=3';
+    await request(server()).get(url).expect(401);
+    await request(server()).get('/api/finanzas/dashboard?semana=2026-11-14')
+      .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(400);
+    const auxiliary = await prisma.usuarios.findFirstOrThrow({ where: { correo_electronico: { contains: 'auxiliar-comisiones' } } });
+    await request(server()).get(url)
+      .set('Authorization', `Bearer ${await tokenFor(auxiliary.id)}`).expect(403);
+    const global = await request(server()).get(url)
+      .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(200);
+    const finance = await request(server()).get(url)
+      .set('Authorization', `Bearer ${await tokenFor(financialId)}`).expect(200);
+    const own = await request(server()).get(url)
+      .set('Authorization', `Bearer ${await tokenFor(advisorId)}`).expect(200);
+    const other = await request(server()).get(url)
+      .set('Authorization', `Bearer ${await tokenFor(otherAdvisorId)}`).expect(200);
+    const rows = await prisma.pagos.findMany({ where: {
+      fecha_pago: { gte: new Date('2026-11-13T05:00:00.000Z'), lt: new Date('2026-11-20T05:00:00.000Z') },
+      estados_pago: { nombre: 'Validado' },
+    }, select: { monto: true, contratos: { select: { asesor_id: true } } } });
+    const expected = (advisor?: string) => rows.filter(row => !advisor || row.contratos.asesor_id === advisor)
+      .reduce((sum, row) => sum.plus(row.monto), new Prisma.Decimal(0)).toFixed(2);
+    expect(global.body.indicadores.ingresos_periodo).toBe(expected());
+    expect(finance.body.indicadores.ingresos_periodo).toBe(expected());
+    expect(own.body.indicadores.ingresos_periodo).toBe(expected(advisorId));
+    expect(other.body.indicadores.ingresos_periodo).toBe(expected(otherAdvisorId));
+    expect(own.body.comisiones.por_concepto).toBeNull();
+    expect(own.body.cortes).toBeNull();
+    const snapshots = await prisma.comisiones.findMany({ where: {
+      fecha_calculo: { gte: new Date('2026-11-13T05:00:00.000Z'), lt: new Date('2026-11-20T05:00:00.000Z') },
+    }, select: { monto_comision: true, beneficiario_id: true, conceptos_dispersion: { select: { nombre: true, es_remanente: true } }, pagos: { select: { contratos: { select: { asesor_id: true } } } } } });
+    const commissionSum = (advisor?: string) => snapshots.filter(row => !advisor ||
+      (row.pagos.contratos.asesor_id === advisor && row.beneficiario_id === advisor && row.conceptos_dispersion.nombre === 'Asesor'))
+      .reduce((sum, row) => sum.plus(row.monto_comision), new Prisma.Decimal(0)).toFixed(2);
+    expect(global.body.comisiones.total_distribuciones_snapshot).toBe(commissionSum());
+    expect(own.body.comisiones.total_distribuciones_snapshot).toBe(commissionSum(advisorId));
+    const personal = snapshots.filter(row => !row.conceptos_dispersion.es_remanente && row.conceptos_dispersion.nombre !== 'IMSS')
+      .reduce((sum, row) => sum.plus(row.monto_comision), new Prisma.Decimal(0)).toFixed(2);
+    expect(global.body.indicadores.comisiones_generadas).toBe(personal);
+    expect(global.body.ingresos_por_servicio.dias).toHaveLength(7);
+    expect(global.body.ingresos_por_servicio.dias.reduce((sum: Prisma.Decimal, day: { monto: string }) => sum.plus(day.monto), new Prisma.Decimal(0)).toFixed(2)).toBe(expected());
+    expect(global.body.ingresos_por_servicio.servicios.reduce((sum: Prisma.Decimal, service: { monto: string }) => sum.plus(service.monto), new Prisma.Decimal(0)).toFixed(2)).toBe(expected());
+    const report = await request(server()).get('/api/finanzas/reportes/ingresos')
+      .query({ fecha_desde: '2026-11-13', fecha_hasta: '2026-11-19', granularidad: 'semanal' })
+      .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(200);
+    expect(report.body.resumen.total).toBe(expected());
+    for (const endpoint of ['comisiones-destino', 'comisiones-tipo-venta', 'imss', 'pagos-metodo']) {
+      await request(server()).get(`/api/finanzas/reportes/${endpoint}`)
+        .query({ fecha_desde: '2026-11-13', fecha_hasta: '2026-11-19', granularidad: 'semanal' })
+        .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(200);
+    }
+    expect(global.body.cobranza.saldo_conocido).toMatch(/^\d+\.\d{2}$/);
+    const firstActivity = await request(server()).get('/api/finanzas/dashboard?semana=2026-11-13&limite=1')
+      .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(200);
+    expect(firstActivity.body.actividad_reciente.hay_mas).toBe(true);
+    const nextActivity = await request(server()).get('/api/finanzas/dashboard')
+      .query({ semana: '2026-11-13', limite: 1, cursor_actividad: firstActivity.body.actividad_reciente.next_cursor })
+      .set('Authorization', `Bearer ${await tokenFor(adminId)}`).expect(200);
+    expect(nextActivity.body.actividad_reciente.items[0].id_origen).not.toBe(firstActivity.body.actividad_reciente.items[0].id_origen);
+  });
+
+  it('respeta medianoche Cancún, fecha nula y saldos desconocidos con PostgreSQL real', async () => {
+    const target = await contract(otherAdvisorId, 'dashboard-limites');
+    const validated = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: 'Validado' } });
+    const review = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: 'Pendiente de revisión financiera' } });
+    const rejected = await prisma.estados_pago.findUniqueOrThrow({ where: { nombre: 'Rechazado' } });
+    await prisma.pagos.createMany({ data: [
+      { contrato_id: target, estado_pago_id: validated.id, monto: '11.11', fecha_pago: new Date('2026-12-04T04:59:59.000Z') },
+      { contrato_id: target, estado_pago_id: validated.id, monto: '22.22', fecha_pago: new Date('2026-12-04T05:00:00.000Z') },
+      { contrato_id: target, estado_pago_id: validated.id, monto: '33.33', fecha_pago: new Date('2026-12-11T04:59:59.000Z') },
+      { contrato_id: target, estado_pago_id: validated.id, monto: '44.44', fecha_pago: new Date('2026-12-11T05:00:00.000Z') },
+      { contrato_id: target, estado_pago_id: validated.id, monto: '55.55', fecha_pago: null },
+      { contrato_id: target, estado_pago_id: review.id, monto: '66.66', fecha_pago: new Date('2026-12-04T12:00:00.000Z') },
+      { contrato_id: target, estado_pago_id: rejected.id, monto: '77.77', fecha_pago: new Date('2026-12-04T12:00:00.000Z') },
+    ] });
+    const scheduled = await prisma.pagos_programados.create({ data: {
+      contrato_id: target, numero_pago: 1, monto_esperado: '100.00', fecha_esperada: new Date('2026-12-06'), fecha_vencimiento: new Date('2026-12-07'),
+    } });
+    await prisma.pagos.createMany({ data: [
+      { contrato_id: target, pago_programado_id: scheduled.id, estado_pago_id: validated.id, monto: '40.00', fecha_pago: new Date('2026-12-06T12:00:00.000Z') },
+      { contrato_id: target, pago_programado_id: scheduled.id, estado_pago_id: review.id, monto: '20.00', fecha_pago: new Date('2026-12-06T12:00:00.000Z') },
+    ] });
+    await prisma.pagos_programados.create({ data: { contrato_id: target, numero_pago: 2, monto_esperado: null } });
+    const overpaid = await prisma.pagos_programados.create({ data: { contrato_id: target, numero_pago: 3, monto_esperado: '5.00' } });
+    await prisma.pagos.create({ data: { contrato_id: target, pago_programado_id: overpaid.id, estado_pago_id: validated.id, monto: '10.00', fecha_pago: null } });
+    const response = await request(server()).get('/api/finanzas/dashboard?semana=2026-12-04')
+      .set('Authorization', `Bearer ${await tokenFor(otherAdvisorId)}`).expect(200);
+    expect(response.body.indicadores.ingresos_periodo).toBe('95.55');
+    expect(response.body.indicadores.ingresos_periodo_anterior).toBe('11.11');
+    expect(response.body.ingresos_por_servicio.dias[0].monto).toBe('22.22');
+    expect(response.body.ingresos_por_servicio.dias[2].monto).toBe('40.00');
+    expect(response.body.cobranza.saldos_no_disponibles).toBe(2);
+    expect(response.body.cobranza.anomalias).toBe(1);
+    expect(response.body.cobranza.saldo_conocido).toBe('60.00');
+    expect(response.body.cobranza.total_completo).toBe(false);
+    const operation = await request(server()).get(`/api/finanzas/pagos-programados/${scheduled.id}`)
+      .set('Authorization', `Bearer ${await tokenFor(otherAdvisorId)}`).expect(200);
+    expect(operation.body.saldo_pendiente_confirmado).toBe('60.00');
+  });
+
+  it('lista próximos cobros con saldo confirmado y relaciones visibles al asesor', async () => {
+    const target = await contract(otherAdvisorId, 'dashboard-proximos');
+    const tomorrow = new Date(`${cancunToday()}T00:00:00.000Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const due = tomorrow.toISOString().slice(0, 10);
+    const row = await prisma.pagos_programados.create({ data: {
+      contrato_id: target, numero_pago: 1, fecha_esperada: new Date(due), fecha_vencimiento: new Date(due),
+      monto_esperado: '88.88', tipo_cobro_id: principalTypeId,
+    } });
+    const response = await request(server()).get('/api/finanzas/dashboard?limite=20')
+      .set('Authorization', `Bearer ${await tokenFor(otherAdvisorId)}`).expect(200);
+    const item = response.body.proximos_cobros.items.find((value: { id_programado: string }) => value.id_programado === row.id);
+    expect(item).toMatchObject({ contrato_id: target, folio: `${prefix}-dashboard-proximos`,
+      fecha_esperada: due, importe_pendiente: '88.88', numero_pago: 1,
+      servicio: { id: serviceId }, tipo_cobro: { id: principalTypeId },
+    });
+    expect(item.cliente.id).toBeTruthy();
+    expect(item.cliente.nombre).toContain('Prueba');
   });
 });
