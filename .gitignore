@@ -185,3 +185,5 @@ docs/
 
 # Propuestas locales de Prisma
 /prisma/proposals/
+
+agents.md
