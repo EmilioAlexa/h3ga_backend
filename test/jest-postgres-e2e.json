@@ -2,7 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": "(commercial-core|payments|client-integrity)\\.e2e-spec\\.ts$",
+  "testRegex": "(commercial-core|payments|client-integrity|client-retirement)\\.e2e-spec\\.ts$",
   "setupFiles": ["<rootDir>/test-environment.cjs"],
   "moduleNameMapper": { "^([.]{1,2}/.*)\\.js$": "$1" },
   "transform": { "^.+\\.(t|j)s$": "ts-jest" }
