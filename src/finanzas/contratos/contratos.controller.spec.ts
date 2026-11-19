@@ -39,6 +39,7 @@ describe('ContratosController (JWT and contract ownership)', () => {
   let jwt: JwtService;
   let users: Map<string, MockUser>;
   let contracts: MockContract[];
+  let customerPaused = false;
   let prisma: Record<string, any>;
   let transaction: Record<string, any>;
 
@@ -97,6 +98,14 @@ describe('ContratosController (JWT and contract ownership)', () => {
     contracts = [];
 
     transaction = {
+      $queryRaw: jest.fn(async (query: { strings: string[]; values: string[] }) => {
+        const sql = query.strings.join('');
+        if (sql.includes('FOR UPDATE')) return query.values[0] === ids.customer
+          ? [{ id: ids.customer, pausado: customerPaused }] : [];
+        if (sql.includes('clock_timestamp')) return [{ instante: new Date('2026-11-09T12:00:00Z'), anio: 2026 }];
+        if (sql.includes('INSERT INTO')) return [{ ultimo: 1n }];
+        return [];
+      }),
       clientes: {
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === ids.customer ? { id: ids.customer } : null,
@@ -104,7 +113,7 @@ describe('ContratosController (JWT and contract ownership)', () => {
       },
       servicios: {
         findUnique: jest.fn(async ({ where }: any) =>
-          where.id === 1 && where.activo === true ? { id: 1 } : null,
+          where.id === 1 && where.activo === true ? { id: 1, codigo_folio: 'APD' } : null,
         ),
       },
       estados_contratos: {
@@ -118,6 +127,11 @@ describe('ContratosController (JWT and contract ownership)', () => {
         ),
       },
       contratos: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          contracts.find((contract) => contract.folio === where.folio)
+            ? { id: ids.contract }
+            : null,
+        ),
         create: jest.fn(async ({ data }: any) => {
           const contract = buildContract(data);
           contracts.push(contract);
@@ -211,6 +225,7 @@ describe('ContratosController (JWT and contract ownership)', () => {
   });
 
   beforeEach(() => {
+    customerPaused = false;
     contracts = [
       buildContract(
         {
@@ -278,7 +293,6 @@ describe('ContratosController (JWT and contract ownership)', () => {
       .send({
         cliente_id: ids.customer,
         servicio_id: 1,
-        folio: 'ADVISOR-001',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })
@@ -293,13 +307,58 @@ describe('ContratosController (JWT and contract ownership)', () => {
     expect(transaction.usuarios.findUnique).not.toHaveBeenCalled();
   });
 
+  it('rechaza un folio enviado por el cliente y lo genera sin ese campo', async () => {
+    const token = await tokenFor(ids.advisor);
+    const body = {
+      cliente_id: ids.customer,
+      servicio_id: 1,
+      fecha_contrato: '2026-11-09',
+      estado_contrato_id: 1,
+    };
+    await request(app.getHttpServer())
+      .post('/api/finanzas/contratos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...body, folio: 'MANUAL-001' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/finanzas/contratos')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body)
+      .expect(201);
+    expect(transaction.contratos.create.mock.calls[0][0].data.folio).toBe('202600001');
+  });
+
+  it('rechaza contratos de cliente pausado y permite crearlos tras reactivar', async () => {
+    const token = await tokenFor(ids.advisor);
+    const body = {
+      cliente_id: ids.customer,
+      servicio_id: 1,
+      fecha_contrato: '2026-11-09',
+      estado_contrato_id: 1,
+    };
+    customerPaused = true;
+    await request(app.getHttpServer())
+      .post('/api/finanzas/contratos')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body)
+      .expect(409);
+    expect(transaction.contratos.create).not.toHaveBeenCalled();
+    customerPaused = false;
+    await request(app.getHttpServer())
+      .post('/api/finanzas/contratos')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body)
+      .expect(201);
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(5);
+    expect(transaction.$queryRaw.mock.calls[0][0].sql).toContain('FOR UPDATE');
+  });
+
   it('rejects advisor_id from an advisor and rejects unknown properties', async () => {
     const token = await tokenFor(ids.advisor);
     const body = {
       cliente_id: ids.customer,
       servicio_id: 1,
       asesor_id: ids.otherAdvisor,
-      folio: 'ADVISOR-002',
       fecha_contrato: '2026-11-09',
       estado_contrato_id: 1,
     };
@@ -332,7 +391,6 @@ describe('ContratosController (JWT and contract ownership)', () => {
           cliente_id: ids.customer,
           servicio_id: 1,
           asesor_id: ids.otherAdvisor,
-          folio: `ADMIN-${userId.slice(0, 4)}`,
           fecha_contrato: '2026-11-09',
           estado_contrato_id: 1,
         })
@@ -360,7 +418,6 @@ describe('ContratosController (JWT and contract ownership)', () => {
             cliente_id: ids.customer,
             servicio_id: 1,
             asesor_id: advisorId,
-            folio: 'ADMIN-INVALID',
             fecha_contrato: '2026-11-09',
             estado_contrato_id: 1,
           })
@@ -377,7 +434,6 @@ describe('ContratosController (JWT and contract ownership)', () => {
       .send({
         cliente_id: ids.customer,
         servicio_id: 1,
-        folio: 'ADMIN-MISSING-ADVISOR',
         fecha_contrato: '2026-11-09',
         estado_contrato_id: 1,
       })
@@ -389,7 +445,6 @@ describe('ContratosController (JWT and contract ownership)', () => {
     const body = {
       cliente_id: ids.customer,
       servicio_id: 1,
-      folio: 'INVALID-REFERENCE',
       fecha_contrato: '2026-11-09',
       estado_contrato_id: 1,
     };

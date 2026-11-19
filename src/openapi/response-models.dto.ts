@@ -101,6 +101,12 @@ export class ClienteResumenRespuestaDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiProperty({
+    type: Boolean,
+    description: 'Estado operativo: true pausado, false activo.',
+  })
+  pausado: boolean;
+
   @ApiProperty()
   nombre: string;
 
@@ -219,7 +225,10 @@ export class ContratoRespuestaDto {
   @ApiProperty({ maxLength: 50 })
   folio: string;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date-time',
+    description: 'Fecha contractual serializada como ISO 8601 por JSON.',
+  })
   fecha_contrato: string;
 
   @ApiProperty({ minimum: 1 })
@@ -269,16 +278,42 @@ export class ContratosPaginadosRespuestaDto {
 }
 
 export class PagoRelacionadoRespuestaDto {
-  @ApiProperty({ format: 'uuid' })
-  id: string;
+  @ApiProperty({
+    type: Number,
+    description: 'Identificador entero del catálogo.',
+  })
+  id: number;
 
   @ApiProperty({ description: 'Etiqueta de la relación.' })
   nombre: string;
+
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'Orden del estado, cuando aplica.',
+  })
+  orden?: number;
+}
+
+export class PagoPersonaRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty()
+  nombre: string;
+
+  @ApiProperty()
+  apellido_paterno: string;
+
+  @ApiProperty({ nullable: true })
+  apellido_materno: string | null;
 }
 
 export class EvidenciaPagoResumenRespuestaDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
+
+  @ApiProperty({ description: 'Solo una evidencia vigente cuenta para validar.' })
+  vigente: boolean;
 
   @ApiPropertyOptional({ nullable: true })
   nombre_original?: string | null;
@@ -288,6 +323,64 @@ export class EvidenciaPagoResumenRespuestaDto {
 
   @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
   tipos_evidencia_pago?: PagoRelacionadoRespuestaDto | null;
+}
+
+export class PagoCorreccionRespuestaDto {
+  @ApiProperty({ format: 'uuid' }) id: string;
+  @ApiProperty({ format: 'uuid' }) pago_id: string;
+  @ApiProperty({ format: 'uuid' }) actor_id: string;
+  @ApiProperty({ format: 'date-time' }) fecha_correccion: string;
+  @ApiProperty({ maxLength: 1000 }) motivo: string;
+  @ApiProperty() estado_anterior_id: number;
+  @ApiProperty() estado_nuevo_id: number;
+  @ApiProperty({ type: String, description: 'Decimal(12,2) como string.' }) monto_anterior: string;
+  @ApiProperty({ type: String, description: 'Decimal(12,2) como string.' }) monto_nuevo: string;
+  @ApiProperty({ format: 'date-time', nullable: true }) fecha_pago_anterior: string | null;
+  @ApiProperty({ format: 'date-time' }) fecha_pago_nueva: string;
+  @ApiProperty({ nullable: true }) forma_pago_id_anterior: number | null;
+  @ApiProperty() forma_pago_id_nueva: number;
+  @ApiProperty({ nullable: true }) observaciones_anteriores: string | null;
+  @ApiProperty({ nullable: true }) observaciones_nuevas: string | null;
+  @ApiProperty({ nullable: true }) folio_recibo_anterior: string | null;
+  @ApiProperty({ nullable: true }) folio_recibo_nuevo: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true }) recibido_por_anterior: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true }) recibido_por_nuevo: string | null;
+  @ApiProperty({ nullable: true }) lugar_recepcion_anterior: string | null;
+  @ApiProperty({ nullable: true }) lugar_recepcion_nuevo: string | null;
+  @ApiProperty({ format: 'uuid' }) historial_estado_id: string;
+}
+
+export class PagoContratoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ description: 'Folio visible en las pantallas de pagos.' })
+  folio: string;
+
+  @ApiProperty({ format: 'uuid' })
+  cliente_id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  asesor_id: string;
+
+  @ApiProperty({ nullable: true })
+  cantidad_pagos: number | null;
+
+  @ApiProperty({ type: PagoRelacionadoRespuestaDto })
+  servicios: PagoRelacionadoRespuestaDto;
+
+  @ApiProperty({
+    type: PagoPersonaRespuestaDto,
+    description:
+      'Asesor asignado al contrato; distinto del registrante del pago.',
+  })
+  usuarios: PagoPersonaRespuestaDto;
+
+  @ApiProperty({
+    type: PagoPersonaRespuestaDto,
+    description: 'Cliente del contrato: id y nombre completo.',
+  })
+  clientes: PagoPersonaRespuestaDto;
 }
 
 export class PagoRespuestaDto {
@@ -306,11 +399,21 @@ export class PagoRespuestaDto {
   @ApiPropertyOptional({ nullable: true })
   estado_pago_id?: number | null;
 
-  @ApiProperty({ type: String, example: '1250.00' })
+  @ApiProperty({
+    type: String,
+    example: '1250.5',
+    description:
+      'Decimal serializado como cadena; no se garantizan ceros finales.',
+  })
   monto: string;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  fecha_pago?: string | null;
+  @ApiProperty({
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Fecha real del pago; permanece null si el dato histórico es nulo.',
+  })
+  fecha_pago: string | null;
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   registrado_por?: string | null;
@@ -333,8 +436,8 @@ export class PagoRespuestaDto {
   @ApiPropertyOptional({ nullable: true })
   lugar_recepcion?: string | null;
 
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  contratos: Record<string, unknown>;
+  @ApiProperty({ type: PagoContratoRespuestaDto })
+  contratos: PagoContratoRespuestaDto;
 
   @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
   formas_pago?: PagoRelacionadoRespuestaDto | null;
@@ -345,10 +448,18 @@ export class PagoRespuestaDto {
   @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
   pagos_programados?: Record<string, unknown> | null;
 
-  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+  })
   usuarios?: Record<string, unknown> | null;
 
-  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+  })
   usuario_receptor?: Record<string, unknown> | null;
 
   @ApiPropertyOptional({ type: [EvidenciaPagoResumenRespuestaDto] })
@@ -383,7 +494,11 @@ export class PagoHistorialRespuestaDto {
   @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true })
   estados_pago_historial_estados_pago_estado_nuevo_idToestados_pago?: PagoRelacionadoRespuestaDto | null;
 
-  @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+  })
   usuarios?: Record<string, unknown> | null;
 }
 
@@ -417,11 +532,44 @@ export class PagoProgramadoRespuestaDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   monto_esperado?: string | null;
 
+  @ApiProperty({ type: String, description: 'Suma decimal de abonos definitivamente Validados.' })
+  monto_abonado_validado: string;
+
+  @ApiProperty({ type: String, nullable: true, description: 'monto_esperado menos abonos Validados; null si no puede ofrecerse un saldo operativo.' })
+  saldo_pendiente_confirmado: string | null;
+
+  @ApiProperty({ nullable: true, enum: ['CANCELADO', 'IMPORTE_NO_DEFINIDO', 'IMPORTE_INVALIDO', 'SOBREPAGO'], description: 'Motivo técnico por el que el saldo operativo es null; no es un estado empresarial nuevo.' })
+  motivo_saldo_no_disponible: string | null;
+
   @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
   periodo?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   estado_id?: number | null;
+
+  @ApiPropertyOptional({ type: PagoRelacionadoRespuestaDto, nullable: true, description: 'Estado operativo calculado a partir de cancelación persistida, importe, abonos Validados y fecha de vencimiento en America/Cancun. Puede ser null para datos históricos incompletos o anomalías.' })
+  estado_operativo?: PagoRelacionadoRespuestaDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Actor que canceló la obligación.' })
+  cancelado_por?: string | null;
+
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  cancelado_en?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  motivo_cancelacion?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Justificación persistida de una coincidencia permitida.' })
+  justificacion_duplicado?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Motivo particular de una penalización APD.' })
+  motivo_penalizacion?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: ['TOPADO', 'NO_TOPADO'] })
+  clasificacion_tope_apd?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'Decimal recibido por el beneficiario APD; distinto del pago a H3GA.' })
+  monto_recibido_beneficiario_apd?: string | null;
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   contratos: Record<string, unknown>;

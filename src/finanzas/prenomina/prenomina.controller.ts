@@ -50,7 +50,7 @@ export class PrenominasController {
 
   @Get('cortes/:corteId/prenomina/preparacion')
   @ApiOperation({ summary: 'Previsualizar comisiones personales del corte para prenómina' })
-  @ApiOkResponse({ description: 'Movimientos elegibles agrupados por concepto y receptor, con pagos origen.' })
+  @ApiOkResponse({ description: 'Movimientos elegibles agrupados por concepto y receptor; Referidor se distingue por receptor_cliente_id aunque dos clientes tengan el mismo nombre.' })
   @ApiNotFoundResponse({ description: 'No se encontró el corte.' })
   @ApiConflictResponse({ description: 'El corte ya cuenta con una prenómina.' })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })

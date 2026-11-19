@@ -34,6 +34,9 @@ type EvidenceMetadata = {
   hash_archivo: string | null;
   subido_por: string | null;
   fecha_carga: Date;
+  vigente: boolean;
+  correccion_origen_id: string | null;
+  correccion_sustitucion_id: string | null;
   tipos_evidencia_pago: { id: number; nombre: string } | null;
   usuarios: {
     id: string;
@@ -53,6 +56,9 @@ const evidenceSelect = {
   hash_archivo: true,
   subido_por: true,
   fecha_carga: true,
+  vigente: true,
+  correccion_origen_id: true,
+  correccion_sustitucion_id: true,
   tipos_evidencia_pago: { select: { id: true, nombre: true } },
   usuarios: {
     select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true },
@@ -97,6 +103,7 @@ export class EvidenciasService {
   ) {
     this.ensureCanUpload(usuario);
     const pago = await this.findAccessiblePayment(pagoId, usuario);
+    this.ensurePaymentAcceptsEvidence(pago.estados_pago?.nombre);
     if (!pago.formas_pago) {
       throw new ConflictException('El pago no tiene una forma de pago válida');
     }
@@ -111,21 +118,58 @@ export class EvidenciasService {
         `No está configurado el tipo de evidencia requerido: ${requiredEvidenceName}`,
       );
     }
+    const correctionAtStart = await this.prisma.correcciones_pago.findFirst({
+      where: { pago_id: pago.id },
+      orderBy: [{ fecha_correccion: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
 
     const key = await this.storage.save(validated.buffer, validated.contentType);
     try {
-      const evidence = await this.prisma.evidencias_pago.create({
-        data: {
-          pago_id: pago.id,
-          tipo_evidencia_id: evidenceType.id,
-          archivo_path: key,
-          nombre_original: validated.originalName,
-          tipo_archivo: validated.contentType,
-          tamano_bytes: validated.size,
-          hash_archivo: createHash('sha256').update(validated.buffer).digest('hex'),
-          subido_por: usuario.id,
-        },
-        select: evidenceSelect,
+      const evidence = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "pagos" WHERE "id" = ${pago.id}::uuid FOR UPDATE`,
+        );
+        const actual = await tx.pagos.findFirst({
+          where: {
+            id: pago.id,
+            ...(usuario.roles.nombre === 'asesor'
+              ? { contratos: { is: { asesor_id: usuario.id } } }
+              : {}),
+          },
+          select: {
+            id: true,
+            estados_pago: { select: { nombre: true } },
+            formas_pago: { select: { nombre: true } },
+          },
+        });
+        if (!actual) throw new NotFoundException('Pago no encontrado');
+        this.ensurePaymentAcceptsEvidence(actual.estados_pago?.nombre);
+        if (!actual.formas_pago || this.evidenceTypeForMethod(actual.formas_pago.nombre) !== requiredEvidenceName) {
+          throw new ConflictException('La forma de pago cambió durante la carga de evidencia');
+        }
+        const latestCorrection = await tx.correcciones_pago.findFirst({
+          where: { pago_id: pago.id },
+          orderBy: [{ fecha_correccion: 'desc' }, { id: 'desc' }],
+          select: { id: true },
+        });
+        if ((latestCorrection?.id ?? null) !== (correctionAtStart?.id ?? null)) {
+          throw new ConflictException('El pago se corrigió durante la carga de evidencia');
+        }
+        return tx.evidencias_pago.create({
+          data: {
+            pago_id: pago.id,
+            tipo_evidencia_id: evidenceType.id,
+            archivo_path: key,
+            nombre_original: validated.originalName,
+            tipo_archivo: validated.contentType,
+            tamano_bytes: validated.size,
+            hash_archivo: createHash('sha256').update(validated.buffer).digest('hex'),
+            subido_por: usuario.id,
+            correccion_origen_id: latestCorrection?.id ?? null,
+          },
+          select: evidenceSelect,
+        });
       });
       return publicEvidence(evidence);
     } catch (error) {
@@ -180,6 +224,7 @@ export class EvidenciasService {
       select: {
         id: true,
         formas_pago: { select: { id: true, nombre: true } },
+        estados_pago: { select: { nombre: true } },
       },
     });
     if (!payment) throw new NotFoundException('Pago no encontrado');
@@ -210,6 +255,13 @@ export class EvidenciasService {
   private ensureCanUpload(usuario: AuthenticatedUser) {
     this.ensureCanRead(usuario);
     if (!usuario.activo) throw new ForbiddenException('La cuenta no está activa');
+  }
+
+  private ensurePaymentAcceptsEvidence(state: string | undefined) {
+    if (state === 'Validado' || state === 'Cancelado') {
+      throw new ConflictException('El estado del pago no admite nuevas evidencias');
+    }
+    if (!state) throw new ConflictException('El pago no tiene un estado válido');
   }
 
   private evidenceTypeForMethod(method: string): string {

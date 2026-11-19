@@ -22,6 +22,8 @@ import { PrenominasController } from './prenomina/prenomina.controller';
 import { PrenominasService } from './prenomina/prenomina.service';
 import { ReportesFinancierosController } from './reportes/reportes.controller';
 import { ReportesFinancierosService } from './reportes/reportes.service';
+import { FinancialDashboardController } from './dashboard/financial-dashboard.controller';
+import { FinancialDashboardService } from './dashboard/financial-dashboard.service';
 
 @Module({
   imports: [
@@ -49,6 +51,7 @@ import { ReportesFinancierosService } from './reportes/reportes.service';
     CortesFinancierosController,
     PrenominasController,
     ReportesFinancierosController,
+    FinancialDashboardController,
   ],
   providers: [
     CatalogosService,
@@ -60,6 +63,7 @@ import { ReportesFinancierosService } from './reportes/reportes.service';
     CortesFinancierosService,
     PrenominasService,
     ReportesFinancierosService,
+    FinancialDashboardService,
     RolesGuard,
   ],
 })
