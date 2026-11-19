@@ -70,6 +70,7 @@ model clientes {
   modalidades_aplicacion            modalidades_aplicacion[]
   periodos_inconsistencias          periodos_inconsistencias[]
   tareas_auxiliar                   tareas_auxiliar[]
+  cliente_auxiliares                cliente_auxiliares[]
   servicios_complementarios_tramite servicios_complementarios_tramite[]
 
   @@index([referido_por_cliente_id], map: "ix_clientes_referido_por_cliente_id")
@@ -658,6 +659,8 @@ model usuarios {
   versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                 @relation("versiones_documento_subido_porTousuarios")
   password_reset_codes                                                              password_reset_codes[]
   servicios_complementarios_historial                                               servicios_complementarios_historial[]
+  cliente_auxiliares_como_auxiliar                                                  cliente_auxiliares[]                  @relation("cliente_auxiliares_auxiliar")
+  cliente_auxiliares_como_autorizador                                               cliente_auxiliares[]                  @relation("cliente_auxiliares_autorizador")
 }
 
 model afore {
@@ -1780,4 +1783,23 @@ model servicios_complementarios_avisos {
   aviso   avisos                            @relation(fields: [aviso_id], references: [id])
 
   @@unique([servicio_tramite_id, aviso_id])
+}
+
+model cliente_auxiliares {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id         String   @db.Uuid
+  auxiliar_id        String   @db.Uuid
+  autorizado_por     String   @db.Uuid
+  fecha_autorizacion DateTime @default(now()) @db.Timestamptz(6)
+  activo             Boolean  @default(true)
+
+  clientes clientes @relation(fields: [cliente_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cliente_auxiliares_cliente_id_fkey")
+
+  usuario_auxiliar usuarios @relation("cliente_auxiliares_auxiliar", fields: [auxiliar_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cliente_auxiliares_auxiliar_id_fkey")
+
+  usuario_autorizador usuarios @relation("cliente_auxiliares_autorizador", fields: [autorizado_por], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cliente_auxiliares_autorizado_por_fkey")
+
+  @@unique([cliente_id, auxiliar_id], map: "cliente_auxiliares_cliente_id_auxiliar_id_key")
+  @@index([auxiliar_id, activo], map: "cliente_auxiliares_auxiliar_id_activo_idx")
+  @@index([cliente_id, activo], map: "cliente_auxiliares_cliente_id_activo_idx")
 }
