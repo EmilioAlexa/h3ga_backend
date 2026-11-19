@@ -40,7 +40,10 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
 
   beforeAll(async () => {
     users = new Map([
-      [adminId, { id: adminId, activo: true, roles: { nombre: 'administrador' } }],
+      [
+        adminId,
+        { id: adminId, activo: true, roles: { nombre: 'administrador' } },
+      ],
       [
         financialAdminId,
         {
@@ -51,17 +54,26 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
       ],
       [advisorId, { id: advisorId, activo: true, roles: { nombre: 'asesor' } }],
     ]);
-    services = [{ id: 1, nombre: 'Servicio de prueba', descripcion: null, activo: true }];
+    services = [
+      { id: 1, nombre: 'Servicio de prueba', descripcion: null, activo: true },
+    ];
     paymentScheduleReferences = 0;
     paymentStateHistoryReferences = 0;
 
     transaction = {
       servicios: {
-        findUnique: jest.fn(async ({ where }: { where: { id: number } }) =>
-          services.find((record) => record.id === where.id) ?? null,
+        findUnique: jest.fn(
+          async ({ where }: { where: { id: number } }) =>
+            services.find((record) => record.id === where.id) ?? null,
         ),
         update: jest.fn(
-          async ({ where, data }: { where: { id: number }; data: Partial<ServiceRecord> }) => {
+          async ({
+            where,
+            data,
+          }: {
+            where: { id: number };
+            data: Partial<ServiceRecord>;
+          }) => {
             const record = services.find((item) => item.id === where.id);
             if (!record) throw new Error('missing service');
             Object.assign(record, data);
@@ -73,7 +85,9 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
         findUnique: jest.fn(async ({ where }: { where: { id: number } }) =>
           where.id === 2 ? { id: 2 } : null,
         ),
-        delete: jest.fn(async ({ where }: { where: { id: number } }) => ({ id: where.id })),
+        delete: jest.fn(async ({ where }: { where: { id: number } }) => ({
+          id: where.id,
+        })),
       },
       pagos_programados: {
         count: jest.fn(async () => paymentScheduleReferences),
@@ -82,7 +96,9 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
         findUnique: jest.fn(async ({ where }: { where: { id: number } }) =>
           where.id === 3 ? { id: 3 } : null,
         ),
-        delete: jest.fn(async ({ where }: { where: { id: number } }) => ({ id: where.id })),
+        delete: jest.fn(async ({ where }: { where: { id: number } }) => ({
+          id: where.id,
+        })),
       },
       pagos: { count: jest.fn(async () => 0) },
       historial_estados_pago: {
@@ -94,31 +110,54 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
 
     prisma = {
       usuarios: {
-        findUnique: jest.fn(async ({ where }: { where: { id: string } }) =>
-          users.get(where.id) ?? null,
+        findUnique: jest.fn(
+          async ({ where }: { where: { id: string } }) =>
+            users.get(where.id) ?? null,
         ),
       },
-      $transaction: jest.fn(async (callback: (transaction: Record<string, any>) => unknown) =>
-        callback(transaction as any),
+      $transaction: jest.fn(
+        async (callback: (transaction: Record<string, any>) => unknown) =>
+          callback(transaction as any),
       ),
       servicios: {
-        findMany: jest.fn(async (args: { where: { activo?: boolean }; skip: number; take: number }) =>
-          services
-            .filter((record) => args.where.activo === undefined || record.activo === args.where.activo)
-            .slice(args.skip, args.skip + args.take),
+        findMany: jest.fn(
+          async (args: {
+            where: { activo?: boolean };
+            skip: number;
+            take: number;
+          }) =>
+            services
+              .filter(
+                (record) =>
+                  args.where.activo === undefined ||
+                  record.activo === args.where.activo,
+              )
+              .slice(args.skip, args.skip + args.take),
         ),
-        count: jest.fn(async (args: { where: { activo?: boolean } }) =>
-          services.filter(
-            (record) => args.where.activo === undefined || record.activo === args.where.activo,
-          ).length,
+        count: jest.fn(
+          async (args: { where: { activo?: boolean } }) =>
+            services.filter(
+              (record) =>
+                args.where.activo === undefined ||
+                record.activo === args.where.activo,
+            ).length,
         ),
+      },
+      estados_contratos: {
+        findMany: jest.fn(async () => [
+          { id: 1, nombre: 'Estado de prueba', descripcion: null, orden: 1 },
+        ]),
+        count: jest.fn(async () => 1),
       },
     };
 
     const moduleRef = await Test.createTestingModule({
       imports: [
         PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.register({ secret: jwtSecret, signOptions: { expiresIn: '1h' } }),
+        JwtModule.register({
+          secret: jwtSecret,
+          signOptions: { expiresIn: '1h' },
+        }),
       ],
       controllers: [CatalogosController],
       providers: [
@@ -134,14 +173,20 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     jwt = app.get(JwtService);
   });
 
   beforeEach(() => {
-    services = [{ id: 1, nombre: 'Servicio de prueba', descripcion: null, activo: true }];
+    services = [
+      { id: 1, nombre: 'Servicio de prueba', descripcion: null, activo: true },
+    ];
     paymentScheduleReferences = 0;
     paymentStateHistoryReferences = 0;
     jest.clearAllMocks();
@@ -150,6 +195,44 @@ describe('CatalogosController DELETE (JWT, roles and referential integrity)', ()
   afterAll(async () => {
     await app.close();
   });
+
+  it.each([
+    ['administrador', adminId],
+    ['administrador financiero', financialAdminId],
+    ['asesor', advisorId],
+  ])(
+    '%s consulta servicios activos y estados contractuales paginados',
+    async (_rol, id) => {
+      const token = await tokenFor(id);
+      const headers = { Authorization: `Bearer ${token}` };
+      const catalogos = await request(app.getHttpServer())
+        .get('/api/finanzas/catalogos')
+        .set(headers)
+        .expect(200);
+      expect(
+        catalogos.body.map((item: { clave: string }) => item.clave),
+      ).toEqual(expect.arrayContaining(['servicios', 'estados-contrato']));
+      const servicios = await request(app.getHttpServer())
+        .get('/api/finanzas/catalogos/servicios?page=1&limit=1')
+        .set(headers)
+        .expect(200);
+      expect(servicios.body).toMatchObject({
+        data: [{ id: 1, activo: true }],
+        pagination: { page: 1, limit: 1, total: 1 },
+      });
+      expect(prisma.servicios.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { activo: true }, take: 1 }),
+      );
+      const estados = await request(app.getHttpServer())
+        .get('/api/finanzas/catalogos/estados-contrato?page=1&limit=1')
+        .set(headers)
+        .expect(200);
+      expect(estados.body).toMatchObject({
+        data: [{ nombre: 'Estado de prueba' }],
+        pagination: { page: 1, limit: 1, total: 1 },
+      });
+    },
+  );
 
   it('requires authentication for DELETE', async () => {
     await request(app.getHttpServer())

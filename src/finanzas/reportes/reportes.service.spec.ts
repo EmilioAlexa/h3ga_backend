@@ -24,7 +24,7 @@ describe('ReportesFinancierosService', () => {
     expect(sql.sql).toContain("ep.\"nombre\"");
     expect(sql.sql).toContain("date_trunc('week'");
     expect(sql.values).toContain('Validado');
-    expect(sql.values).toContain('America/Cancun');
+    expect(sql.sql).toContain("AT TIME ZONE 'America/Cancun'");
     expect(result.datos).toEqual([
       { periodo: '2026-01-02', monto: '100.25', cantidad_pagos: 2 },
     ]);

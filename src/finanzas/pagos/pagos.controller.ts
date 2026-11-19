@@ -29,10 +29,12 @@ import { Roles } from '../../roles/decorators/roles.decorator';
 import { RolesGuard } from '../../roles/guards/roles.guard';
 import {
   PagoHistorialRespuestaDto,
+  PagoCorreccionRespuestaDto,
   PagoRespuestaDto,
   PagosPaginadosRespuestaDto,
 } from '../../openapi/response-models.dto';
 import { ChangeEstadoPagoDto } from './dto/change-estado-pago.dto';
+import { CorrectPagoDto } from './dto/correct-pago.dto';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { QueryPagosDto } from './dto/query-pagos.dto';
 import { PagosService } from './pagos.service';
@@ -116,6 +118,19 @@ export class PagosController {
     return this.pagosService.findHistory(id, usuario);
   }
 
+  @Get(':id/correcciones')
+  @ApiOperation({ summary: 'Consultar auditoría estructurada de correcciones del pago' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: [PagoCorreccionRespuestaDto], description: 'Lista cronológica de valores anteriores y nuevos, actor y motivo.' })
+  @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
+  @ApiNotFoundResponse({ description: 'Pago inexistente o fuera del alcance.' })
+  findCorrections(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.pagosService.findCorrections(id, usuario);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Consultar un pago por UUID',
@@ -159,12 +174,33 @@ export class PagosController {
     return this.pagosService.create(dto, usuario);
   }
 
+  @Patch(':id/corregir')
+  @Roles('asesor')
+  @ApiOperation({
+    summary: 'Corregir un pago rechazado y reenviarlo a revisión financiera',
+    description: 'Solo el asesor que registró originalmente el pago y conserva acceso al contrato. La operación audita antes/después, sustituye lógicamente las evidencias anteriores y exige cargar nueva evidencia del método resultante antes de aprobar.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: PagoRespuestaDto })
+  @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
+  @ApiForbiddenResponse({ description: 'El solicitante no es el asesor registrante.' })
+  @ApiNotFoundResponse({ description: 'Pago inexistente o fuera del alcance del asesor.' })
+  @ApiBadRequestResponse({ description: 'Motivo, método, importe, fecha o datos de efectivo inválidos.' })
+  @ApiConflictResponse({ description: 'Estado o relaciones financieras incompatibles con la corrección.' })
+  correct(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CorrectPagoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.pagosService.correct(id, dto, usuario);
+  }
+
   @Patch(':id/estado')
   @Roles('administrador', 'administrador financiero')
   @ApiOperation({
     summary: 'Revisar, rechazar, enviar a autorización o validar un pago',
     description:
-      'Administración financiera: desde Pendiente de revisión financiera puede rechazar o enviar a Pendiente de autorización. Administración: desde el estado inicial puede rechazar o validar directamente; desde Pendiente de autorización puede rechazar o validar. Aprobar requiere evidencia tipificada correspondiente al método. Cada transición queda auditada.',
+      'Administración financiera: desde Pendiente de revisión financiera puede rechazar o enviar a Pendiente de autorización. Administración: desde el estado inicial puede rechazar o validar directamente; desde Pendiente de autorización puede rechazar o validar. Rechazar exige comentario con motivo. Aprobar requiere evidencia tipificada correspondiente al método. Cada transición queda auditada y bloquea la fila del pago durante la revisión.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: PagoRespuestaDto })
@@ -174,7 +210,7 @@ export class PagosController {
   })
   @ApiNotFoundResponse({ description: 'Pago no encontrado.' })
   @ApiBadRequestResponse({
-    description: 'Transición no permitida o evidencia requerida ausente.',
+    description: 'Motivo de rechazo ausente, transición no permitida o evidencia requerida ausente.',
   })
   @ApiConflictResponse({
     description: 'Estado, catálogo o historial inconsistente.',

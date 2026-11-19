@@ -6,7 +6,6 @@ import {
   IsString,
   IsUUID,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -35,14 +34,6 @@ export class CreateContratoDto {
   @IsOptional()
   @IsUUID()
   asesor_id?: string;
-
-  @ApiProperty({
-    description: 'Folio del contrato (máximo 50 caracteres).',
-    maxLength: 50,
-  })
-  @IsString()
-  @MaxLength(50)
-  folio: string;
 
   @ApiProperty({
     description: 'Fecha del contrato en formato ISO 8601.',

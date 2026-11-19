@@ -16,6 +16,7 @@ function commission(overrides: Record<string, unknown> = {}) {
     receptor_nombre_snapshot: 'Receptor de prueba',
     beneficiario_id: null,
     receptor_dispersion_id: 'receiver-id',
+    receptor_cliente_id: null,
     detalle_prenomina_id: null,
     conceptos_dispersion: {
       id: 5,
@@ -151,5 +152,67 @@ describe('PrenominasService', () => {
       where: { id: { in: ['commission-1'] }, detalle_prenomina_id: null },
       data: { detalle_prenomina_id: 'detail-id' },
     });
+  });
+
+  it('keeps homonymous Referidor clients in separate groups by UUID', async () => {
+    const rows = [
+      commission({ id: 'commission-a', receptor_dispersion_id: null, receptor_cliente_id: 'client-ref-a' }),
+      commission({ id: 'commission-b', receptor_dispersion_id: null, receptor_cliente_id: 'client-ref-b' }),
+    ];
+    const tx = {
+      cortes_financieros: { findUnique: jest.fn().mockResolvedValue({ id: 'cut-id', estados_corte: { nombre: 'Cerrado' } }) },
+      estados_prenomina: { findUnique: jest.fn().mockResolvedValue({ id: 17 }) },
+      prenomina: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'pren-id' }) },
+      detalle_corte: { findMany: jest.fn().mockResolvedValue([{ pago_id: 'payment-1' }]) },
+      comisiones: { findMany: jest.fn().mockResolvedValue(rows), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      detalle_prenomina: { create: jest.fn().mockResolvedValueOnce({ id: 'detail-a' }).mockResolvedValueOnce({ id: 'detail-b' }) },
+    };
+    const prisma = {
+      cortes_financieros: tx.cortes_financieros,
+      prenomina: tx.prenomina,
+      detalle_corte: tx.detalle_corte,
+      comisiones: tx.comisiones,
+      $transaction: jest.fn((work: (client: typeof tx) => unknown) => work(tx)),
+    };
+    const service = new PrenominasService(prisma as never);
+    const preview = await service.preview('cut-id', admin);
+    expect(preview.por_receptor).toHaveLength(2);
+    expect(preview.por_receptor.map(row => row.receptor_cliente_id)).toEqual(['client-ref-a', 'client-ref-b']);
+    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'pren-id' } as never);
+    await service.generate('cut-id', { estado_id: 17 }, admin);
+    expect(tx.detalle_prenomina.create).toHaveBeenCalledTimes(2);
+    expect(tx.detalle_prenomina.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({ receptor_cliente_id: 'client-ref-a', receptor_dispersion_id: null }),
+    }));
+    expect(tx.detalle_prenomina.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: expect.objectContaining({ receptor_cliente_id: 'client-ref-b', receptor_dispersion_id: null }),
+    }));
+    expect(tx.comisiones.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: { in: ['commission-a'] }, detalle_prenomina_id: null }, data: { detalle_prenomina_id: 'detail-a' },
+    });
+    expect(tx.comisiones.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: { in: ['commission-b'] }, detalle_prenomina_id: null }, data: { detalle_prenomina_id: 'detail-b' },
+    });
+  });
+
+  it('preserves grouping by user and configured receiver for other personal destinations', async () => {
+    const rows = [
+      commission({ id: 'advisor-a', beneficiario_id: 'advisor-id', receptor_dispersion_id: null,
+        receptor_cliente_id: null, conceptos_dispersion: { id: 1, nombre: 'Asesor', tipo_destino: 'usuario', incluye_en_prenomina: true, es_remanente: false } }),
+      ...(['Director', 'Gerente', 'Bróker'] as const).map((name, index) => commission({
+        id: `manual-${index}`, receptor_dispersion_id: `receiver-${index}`, receptor_cliente_id: null,
+        conceptos_dispersion: { id: index + 2, nombre: name, tipo_destino: 'externo', incluye_en_prenomina: true, es_remanente: false },
+      })),
+    ];
+    const prisma = {
+      cortes_financieros: { findUnique: jest.fn().mockResolvedValue({ id: 'cut-id', estados_corte: { nombre: 'Cerrado' } }) },
+      prenomina: { findUnique: jest.fn().mockResolvedValue(null) },
+      detalle_corte: { findMany: jest.fn().mockResolvedValue([{ pago_id: 'payment-1' }]) },
+      comisiones: { findMany: jest.fn().mockResolvedValue(rows) },
+    };
+    const result = await new PrenominasService(prisma as never).preview('cut-id', admin);
+    expect(result.por_receptor).toHaveLength(4);
+    expect(result.por_receptor.map(row => row.destino).sort((a, b) => a.localeCompare(b))).toEqual(['Asesor', 'Bróker', 'Director', 'Gerente']);
+    expect(result.por_receptor.every(row => row.receptor_cliente_id === null)).toBe(true);
   });
 });

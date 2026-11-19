@@ -32,6 +32,7 @@ import {
   PagosProgramadosPaginadosRespuestaDto,
 } from '../../openapi/response-models.dto';
 import { ChangeEstadoPagoProgramadoDto } from './dto/change-estado-pago-programado.dto';
+import { CancelPagoProgramadoDto } from './dto/cancel-pago-programado.dto';
 import { CreatePagoProgramadoDto } from './dto/create-pago-programado.dto';
 import { QueryPagosProgramadosDto } from './dto/query-pagos-programados.dto';
 import { UpdatePagoProgramadoDto } from './dto/update-pago-programado.dto';
@@ -55,7 +56,7 @@ export class PagosProgramadosController {
   @ApiOperation({
     summary: 'Consultar pagos programados',
     description:
-      'Filtros por contrato, tipo, estado y fecha esperada. El asesor solo ve programaciones de contratos asignados mediante contratos.asesor_id.',
+      'Filtros por contrato, tipo, estado operativo calculado y fecha esperada. El asesor solo ve programaciones de contratos asignados mediante contratos.asesor_id. El filtro estado_id se aplica antes de paginar; estado_operativo puede ser null para datos históricos incompletos o anomalías.',
   })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -77,7 +78,7 @@ export class PagosProgramadosController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Consultar pago programado por UUID' })
+  @ApiOperation({ summary: 'Consultar pago programado por UUID', description: 'Incluye suma Decimal de abonos Validados y saldo confirmado nullable. Si hay sobrepago, cancelación o importe desconocido, se devuelve motivo técnico en vez de saldo negativo.' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: PagoProgramadoRespuestaDto })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
@@ -94,7 +95,7 @@ export class PagosProgramadosController {
   @ApiOperation({
     summary: 'Registrar una programación de cobro',
     description:
-      'No crea un pago real. Asesores solo pueden asociarla a contratos propios. El estado puede asignarlo administración mediante PATCH /:id/estado.',
+      'No crea un pago real. Exige fecha_vencimiento. Asesores solo pueden asociarla a contratos propios. El tipo Penalización exige contrato APD, monto, fecha esperada y motivo particular. Coincidencias de contrato/fecha/importe requieren justificación.',
   })
   @ApiCreatedResponse({ type: PagoProgramadoRespuestaDto })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
@@ -111,7 +112,7 @@ export class PagosProgramadosController {
   @ApiOperation({
     summary: 'Actualizar datos de una programación',
     description:
-      'Asesores solo pueden actualizar programaciones de contratos propios. El contrato no se puede cambiar; el estado usa una ruta administrativa separada.',
+      'Asesores solo pueden actualizar programaciones de contratos propios. El contrato no se puede cambiar; no se puede retirar la fecha límite ni alterar una obligación con abonos Validados. Una coincidencia nueva exige justificación.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: PagoProgramadoRespuestaDto })
@@ -128,12 +129,33 @@ export class PagosProgramadosController {
     return this.service.update(id, dto, usuario);
   }
 
+  @Patch(':id/cancelar')
+  @Roles('administrador', 'administrador financiero')
+  @ApiOperation({
+    summary: 'Cancelar una obligación sin pagos vinculados',
+    description: 'Bloquea la programación, rechaza cualquier pago vinculado sin importar su estado y conserva actor, fecha y motivo. No elimina la obligación ni permite reactivación.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: PagoProgramadoRespuestaDto })
+  @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
+  @ApiForbiddenResponse({ description: 'Solo administrador o administrador financiero activos pueden cancelar.' })
+  @ApiNotFoundResponse({ description: 'Obligación no encontrada.' })
+  @ApiBadRequestResponse({ description: 'Motivo ausente o inválido.' })
+  @ApiConflictResponse({ description: 'Obligación cancelada o con cualquier pago vinculado.' })
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelPagoProgramadoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.service.cancel(id, dto, usuario);
+  }
+
   @Patch(':id/estado')
   @Roles('administrador', 'administrador financiero')
   @ApiOperation({
-    summary: 'Asignar un estado de catálogo a la programación',
+    summary: 'Ruta histórica de cambio de estado (deshabilitada)',
     description:
-      'Solo administración cambia el estado. Se acepta un estado existente en estados_pago_programado; el esquema no tiene historial ni catálogo de transiciones para pagos programados.',
+      'No acepta cambios arbitrarios por ID. Utilizar PATCH /:id/cancelar para cancelar con auditoría; devuelve 409 a administración y 403 a asesor.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkResponse({ type: PagoProgramadoRespuestaDto })

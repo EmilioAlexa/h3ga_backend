@@ -1,10 +1,11 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class ChangeEstadoComisionDto {
-  @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
+  @ApiProperty({ maxLength: 500, description: 'Confirmación administrativa explícita de una transferencia real; queda en el historial.' })
   @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/)
   @MaxLength(500)
-  comentario?: string;
+  comentario: string;
 }

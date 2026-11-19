@@ -31,6 +31,9 @@ const metadata = {
   hash_archivo: 'a'.repeat(64),
   subido_por: ids.advisor,
   fecha_carga: new Date('2026-11-10T12:00:00Z'),
+  vigente: true,
+  correccion_origen_id: null,
+  correccion_sustitucion_id: null,
   tipos_evidencia_pago: { id: 10, nombre: 'Comprobante de efectivo' },
   usuarios: { id: ids.advisor, nombre: 'Ana', apellido_paterno: 'López', apellido_materno: null },
 };
@@ -42,10 +45,13 @@ describe('EvidenciasService', () => {
 
   beforeEach(() => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: ids.payment }]),
+      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) => callback(prisma)),
       pagos: {
         findFirst: jest.fn().mockResolvedValue({
           id: ids.payment,
           formas_pago: { id: 1, nombre: 'Efectivo' },
+          estados_pago: { nombre: 'Pendiente de revisión financiera' },
         }),
       },
       tipos_evidencia_pago: {
@@ -53,6 +59,9 @@ describe('EvidenciasService', () => {
           id: 10,
           nombre: 'Comprobante de efectivo',
         }),
+      },
+      correcciones_pago: {
+        findFirst: jest.fn().mockResolvedValue(null),
       },
       evidencias_pago: {
         create: jest.fn().mockResolvedValue(metadata),
@@ -111,6 +120,51 @@ describe('EvidenciasService', () => {
       }),
     ).rejects.toThrow(NotFoundException);
     expect(storage.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects an evidence upload for a validated payment before storing a file', async () => {
+    prisma.pagos.findFirst.mockResolvedValue({
+      id: ids.payment,
+      formas_pago: { id: 1, nombre: 'Efectivo' },
+      estados_pago: { nombre: 'Validado' },
+    });
+    await expect(service.upload(ids.payment, pdf, {
+      id: ids.advisor,
+      activo: true,
+      roles: { nombre: 'asesor' },
+    })).rejects.toThrow(ConflictException);
+    expect(storage.save).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the payment state under a row lock and removes a staged file after concurrent validation', async () => {
+    prisma.pagos.findFirst
+      .mockResolvedValueOnce({
+        id: ids.payment,
+        formas_pago: { id: 1, nombre: 'Efectivo' },
+        estados_pago: { nombre: 'Pendiente de revisión financiera' },
+      })
+      .mockResolvedValueOnce({ id: ids.payment, estados_pago: { nombre: 'Validado' } });
+    await expect(service.upload(ids.payment, pdf, {
+      id: ids.advisor,
+      activo: true,
+      roles: { nombre: 'asesor' },
+    })).rejects.toThrow(ConflictException);
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+    expect(prisma.evidencias_pago.create).not.toHaveBeenCalled();
+    expect(storage.delete).toHaveBeenCalledWith('key.pdf');
+  });
+
+  it('rejects a staged upload when a correction commits before metadata insertion', async () => {
+    prisma.correcciones_pago.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'bb4b27d0-c624-4adc-8ce9-ec69df5141fa' });
+    await expect(service.upload(ids.payment, pdf, {
+      id: ids.advisor,
+      activo: true,
+      roles: { nombre: 'asesor' },
+    })).rejects.toThrow(ConflictException);
+    expect(prisma.evidencias_pago.create).not.toHaveBeenCalled();
+    expect(storage.delete).toHaveBeenCalledWith('key.pdf');
   });
 
   it('deletes the just-uploaded object when database metadata creation fails', async () => {

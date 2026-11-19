@@ -23,6 +23,7 @@ const commissionSelect = {
   receptor_nombre_snapshot: true,
   beneficiario_id: true,
   receptor_dispersion_id: true,
+  receptor_cliente_id: true,
   detalle_prenomina_id: true,
   usuarios: {
     select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true },
@@ -86,6 +87,7 @@ type RecipientGroup = {
   conceptName: string;
   beneficiaryId: string | null;
   receiverId: string | null;
+  receiverClientId: string | null;
   receiverName: string;
   commissionIds: string[];
   amount: Prisma.Decimal;
@@ -263,6 +265,7 @@ export class PrenominasService {
               concepto_id: group.conceptId,
               beneficiario_id: group.beneficiaryId,
               receptor_dispersion_id: group.receiverId,
+              receptor_cliente_id: group.receiverClientId,
               receptor_nombre_snapshot: group.receiverName,
             },
             select: { id: true },
@@ -293,11 +296,11 @@ export class PrenominasService {
     const groups = new Map<string, RecipientGroup>();
     for (const commission of commissions) {
       const concept = commission.conceptos_dispersion;
-      if (!commission.beneficiario_id && !commission.receptor_dispersion_id) {
+      if (!commission.beneficiario_id && !commission.receptor_dispersion_id && !commission.receptor_cliente_id) {
         throw new ConflictException(`La comisión ${commission.id} no tiene un receptor identificable`);
       }
       const receiverName = commission.receptor_nombre_snapshot?.trim() || this.receiverName(commission);
-      const key = `${concept.id}:${commission.beneficiario_id ?? ''}:${commission.receptor_dispersion_id ?? ''}`;
+      const key = `${concept.id}:${commission.beneficiario_id ?? ''}:${commission.receptor_dispersion_id ?? ''}:${commission.receptor_cliente_id ?? ''}`;
       let group = groups.get(key);
       if (!group) {
         group = {
@@ -305,6 +308,7 @@ export class PrenominasService {
           conceptName: concept.nombre,
           beneficiaryId: commission.beneficiario_id,
           receiverId: commission.receptor_dispersion_id,
+          receiverClientId: commission.receptor_cliente_id,
           receiverName,
           commissionIds: [],
           amount: new Prisma.Decimal(0),
@@ -323,6 +327,7 @@ export class PrenominasService {
       destino: group.conceptName,
       beneficiario_id: group.beneficiaryId,
       receptor_dispersion_id: group.receiverId,
+      receptor_cliente_id: group.receiverClientId,
       receptor: group.receiverName,
       movimientos: group.commissionIds.length,
       monto_referencial: group.amount.toFixed(2),
@@ -334,6 +339,7 @@ export class PrenominasService {
       comision_id: commission.id,
       concepto: commission.conceptos_dispersion.nombre,
       receptor: commission.receptor_nombre_snapshot || this.receiverName(commission),
+      receptor_cliente_id: commission.receptor_cliente_id,
       monto_base: commission.monto_base.toFixed(2),
       porcentaje_aplicado: commission.valor_aplicado.toFixed(2),
       monto_referencial: commission.monto_comision.toFixed(2),

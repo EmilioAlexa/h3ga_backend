@@ -28,6 +28,15 @@ export class EvidenciaPagoRespuestaDto {
   @ApiProperty({ type: String, format: 'date-time' })
   fecha_carga: Date;
 
+  @ApiProperty({ description: 'Solo las evidencias vigentes cuentan para validar el pago.' })
+  vigente: boolean;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Corrección después de la cual se cargó esta evidencia.' })
+  correccion_origen_id?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Corrección que sustituyó esta evidencia; el archivo histórico se conserva.' })
+  correccion_sustitucion_id?: string | null;
+
   @ApiPropertyOptional({ type: 'object', nullable: true, additionalProperties: true })
   tipos_evidencia_pago?: Record<string, unknown> | null;
 

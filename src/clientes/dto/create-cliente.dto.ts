@@ -6,6 +6,7 @@ import {
   Length,
   MaxLength,
   MinLength,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -13,6 +14,11 @@ const trimText = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
 export class CreateClienteDto {
+  @ApiPropertyOptional({ description: 'UUID de un cliente referidor asignado al mismo asesor. Opcional; no se interpreta el texto histórico referido_por.', format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  referido_por_cliente_id?: string | null;
+
   @ApiProperty({ description: 'Nombre del cliente.' })
   @Transform(trimText)
   @IsString()

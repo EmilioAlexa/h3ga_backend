@@ -18,12 +18,12 @@ export class CreateReceptorDispersionDto {
   @Max(32767)
   concepto_id: number;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Usuario activo para conceptos internos.' })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Solo usuario Asesor activo.' })
   @IsOptional()
   @IsUUID()
   usuario_id?: string;
 
-  @ApiPropertyOptional({ maxLength: 150, description: 'Nombre registrado del receptor externo.' })
+  @ApiPropertyOptional({ maxLength: 150, description: 'Nombre manual de Director, Gerente, Bróker u Otro. Otro lo exige; para los demás, la ausencia de nombre se expresa omitiendo el receptor en la configuración.' })
   @IsOptional()
   @IsString()
   @MaxLength(150)

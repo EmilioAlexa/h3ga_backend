@@ -18,8 +18,15 @@ describe('ContratosService advisor policy', () => {
       observaciones: null,
     };
     tx = {
+      $queryRaw: jest.fn(async (query: { strings: string[] }) => {
+        const sql = query.strings.join('');
+        if (sql.includes('FOR UPDATE')) return [{ id: customerId, pausado: false }];
+        if (sql.includes('clock_timestamp')) return [{ instante: new Date('2026-11-09T12:00:00Z'), anio: 2026 }];
+        if (sql.includes('INSERT INTO')) return [{ ultimo: 1n }];
+        return [];
+      }),
       clientes: { findUnique: jest.fn(async () => ({ id: customerId })) },
-      servicios: { findUnique: jest.fn(async () => ({ id: 1 })) },
+      servicios: { findUnique: jest.fn(async () => ({ id: 1, codigo_folio: 'APD' })) },
       estados_contratos: { findUnique: jest.fn(async () => ({ id: 1 })) },
       usuarios: {
         findUnique: jest.fn(async ({ where }: any) => ({
@@ -29,6 +36,7 @@ describe('ContratosService advisor policy', () => {
         })),
       },
       contratos: {
+        findFirst: jest.fn(async () => null),
         create: jest.fn(async ({ data }: any) => ({ ...contract, ...data })),
       },
     };
@@ -81,6 +89,41 @@ describe('ContratosService advisor policy', () => {
         { id: advisorId, activo: true, roles: { nombre: 'asesor' } },
       ),
     ).rejects.toThrow('asesor_id no se acepta');
+  });
+
+  it('rejects a service without an approved folio code', async () => {
+    tx.servicios.findUnique.mockResolvedValueOnce({ id: 1, codigo_folio: null });
+    await expect(service.create({
+      cliente_id: customerId,
+      servicio_id: 1,
+      fecha_contrato: new Date('2026-11-09'),
+      estado_contrato_id: 1,
+    } as any, { id: advisorId, activo: true, roles: { nombre: 'asesor' } }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(tx.contratos.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['APD', '202700001'],
+    ['M10', 'M10202700001'],
+    ['M40', 'M40202700001'],
+    ['M40R', 'M40R202700001'],
+  ])('formats %s from the PostgreSQL registration year', async (code, expected) => {
+    tx.servicios.findUnique.mockResolvedValueOnce({ id: 1, codigo_folio: code });
+    tx.$queryRaw.mockImplementation(async (query: { strings: string[] }) => {
+      const sql = query.strings.join('');
+      if (sql.includes('FOR UPDATE')) return [{ id: customerId, pausado: false }];
+      if (sql.includes('clock_timestamp')) return [{ instante: new Date('2027-01-01T05:00:00Z'), anio: 2027 }];
+      if (sql.includes('INSERT INTO')) return [{ ultimo: 1n }];
+      return [];
+    });
+    const result = await service.create({
+      cliente_id: customerId,
+      servicio_id: 1,
+      fecha_contrato: new Date('2026-12-31'),
+      estado_contrato_id: 1,
+    } as any, { id: advisorId, activo: true, roles: { nombre: 'asesor' } });
+    expect(result.folio).toBe(expected);
   });
 
   it('scopes list, detail, and update to contratos.asesor_id', async () => {

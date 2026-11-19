@@ -55,7 +55,7 @@ export class EvidenciasController {
   @ApiOperation({
     summary: 'Cargar una evidencia de pago',
     description:
-      'El tipo de evidencia se deriva de la forma de pago. Asesores solo cargan evidencias de pagos de contratos propios. El archivo se almacena de forma privada.',
+      'El tipo de evidencia se deriva de la forma de pago. Asesores solo cargan evidencias de pagos de contratos propios. Pagos validados o cancelados no aceptan nuevas evidencias. El archivo se almacena de forma privada.',
   })
   @ApiParam({ name: 'pagoId', format: 'uuid' })
   @ApiConsumes('multipart/form-data')
@@ -72,7 +72,7 @@ export class EvidenciasController {
   @ApiNotFoundResponse({ description: 'Pago inexistente o fuera del alcance.' })
   @ApiBadRequestResponse({ description: 'Archivo inválido, no permitido o demasiado grande.' })
   @ApiResponse({ status: 413, description: 'El archivo excede MAX_FILE_SIZE_MB.' })
-  @ApiConflictResponse({ description: 'El tipo de evidencia requerido no está configurado.' })
+  @ApiConflictResponse({ description: 'El pago está validado/cancelado o el tipo de evidencia requerido no está configurado.' })
   upload(
     @Param('pagoId', ParseUUIDPipe) pagoId: string,
     @UploadedFile() file: UploadedEvidenceFile | undefined,
