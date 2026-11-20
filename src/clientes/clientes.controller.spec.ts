@@ -37,8 +37,11 @@ type TestCliente = {
   correo_electronico: string | null;
   curp: string | null;
   rfc: string | null;
+  fecha_ingreso?: Date | null;
+  fecha_nacimiento?: Date | null;
   nss: string | null;
   domicilio: string | null;
+  referido_por: string | null;
   observaciones_generales: string | null;
 };
 
@@ -62,6 +65,7 @@ const baseClients: TestCliente[] = [
     rfc: 'LODM800101AAA',
     nss: '12345678901',
     domicilio: 'Dirección privada',
+    referido_por: 'Persona histórica',
     observaciones_generales: 'Nota privada',
   },
   {
@@ -77,6 +81,7 @@ const baseClients: TestCliente[] = [
     rfc: 'PEGC800101BBB',
     nss: '98765432109',
     domicilio: 'Otra dirección privada',
+    referido_por: null,
     observaciones_generales: null,
   },
   {
@@ -92,6 +97,7 @@ const baseClients: TestCliente[] = [
     rfc: null,
     nss: null,
     domicilio: null,
+    referido_por: null,
     observaciones_generales: null,
   },
 ];
@@ -237,9 +243,12 @@ describe('ClientesController (JWT, roles and client scope)', () => {
             correo_electronico: args.data.correo_electronico ?? null,
             curp: args.data.curp ?? null,
             rfc: args.data.rfc ?? null,
+            fecha_ingreso: args.data.fecha_ingreso ?? null,
+            fecha_nacimiento: args.data.fecha_nacimiento ?? null,
             nss: null,
-            domicilio: null,
-            observaciones_generales: null,
+            domicilio: args.data.domicilio ?? null,
+            referido_por: args.data.referido_por ?? null,
+            observaciones_generales: args.data.observaciones_generales ?? null,
           };
           clients.push(client);
           return projectCliente(client, args.select);
@@ -369,6 +378,8 @@ describe('ClientesController (JWT, roles and client scope)', () => {
       apellido_materno: true,
       telefono: true,
       correo_electronico: true,
+      fecha_ingreso: true,
+      fecha_nacimiento: true,
     });
   });
 
@@ -393,6 +404,53 @@ describe('ClientesController (JWT, roles and client scope)', () => {
       where: { id: advisorAId },
       select: { activo: true, roles: { select: { nombre: true } } },
     });
+  });
+
+  it('asigna fecha de ingreso en servidor y conserva campos omitidos en PATCH', async () => {
+    const token = await tokenFor(advisorAId);
+    const created = await request(app.getHttpServer())
+      .post('/api/clientes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nombre: 'Ana', apellido_paterno: 'Prueba', fecha_nacimiento: '1990-02-28', curp: 'lodm800101mqrprr09', rfc: 'abc010101a12', domicilio: 'Calle Uno', referido_por: 'Nombre libre', observaciones_generales: 'Observación inicial' })
+      .expect(201);
+    expect(created.body.fecha_ingreso).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/);
+    expect(created.body.fecha_nacimiento).toBe('1990-02-28T00:00:00.000Z');
+    expect(created.body.curp).toBe('LODM800101MQRPRR09');
+    expect(created.body.rfc).toBe('ABC010101A12');
+    expect(created.body.domicilio).toBe('Calle Uno');
+    expect(created.body.referido_por).toBe('Nombre libre');
+    expect(created.body.observaciones_generales).toBe('Observación inicial');
+    const id = created.body.id;
+    await request(app.getHttpServer()).patch(`/api/clientes/${id}`)
+      .set('Authorization', `Bearer ${token}`).send({ domicilio: 'Calle Dos', observaciones_generales: null }).expect(200);
+    const fetched = await request(app.getHttpServer()).get(`/api/clientes/${id}`)
+      .set('Authorization', `Bearer ${token}`).expect(200);
+    expect(fetched.body.domicilio).toBe('Calle Dos');
+    expect(fetched.body.observaciones_generales).toBeNull();
+    expect(fetched.body.referido_por).toBe('Nombre libre');
+    expect(fetched.body.fecha_nacimiento).toBe('1990-02-28T00:00:00.000Z');
+    expect(prisma.clientes.updateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('fecha_nacimiento');
+    await request(app.getHttpServer()).patch(`/api/clientes/${id}`)
+      .set('Authorization', `Bearer ${token}`).send({ fecha_nacimiento: null }).expect(200);
+    expect(clients.find((client) => client.id === id)?.fecha_nacimiento).toBeNull();
+  });
+
+  it('rechaza fechas imposibles o futuras e identificadores mal formados sin exigir valores nulos', async () => {
+    const token = await tokenFor(advisorAId);
+    const post = (extra: Record<string, unknown>) => request(app.getHttpServer()).post('/api/clientes')
+      .set('Authorization', `Bearer ${token}`).send({ nombre: 'Ana', apellido_paterno: 'Prueba', ...extra });
+    for (const invalid of [
+      { fecha_nacimiento: '9999-01-01' },
+      { curp: 'ABCDEFGHIJKLMNOPQR' },
+      { curp: 'LODM801301MQRPRR09' },
+      { rfc: '1234567890123' },
+      { rfc: 'LODM801301AAA' },
+    ]) await post(invalid).expect(400);
+    await post({ curp: null, rfc: null, fecha_nacimiento: null }).expect(201);
+    await post({ rfc: 'LODM800101AAA' }).expect(201);
+    await post({ fecha_ingreso: '2026-01-01' }).expect(400);
+    await request(app.getHttpServer()).patch(`/api/clientes/${clientAId}`)
+      .set('Authorization', `Bearer ${token}`).send({ fecha_ingreso: '2026-01-01' }).expect(400);
   });
 
   it('blocks non-advisors from creating clients', async () => {

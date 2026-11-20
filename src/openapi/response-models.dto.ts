@@ -124,6 +124,12 @@ export class ClienteResumenRespuestaDto {
 }
 
 export class ClienteDetalleRespuestaDto extends ClienteResumenRespuestaDto {
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true, description: 'Fecha de ingreso; fecha civil serializada a medianoche UTC.' })
+  fecha_ingreso?: Date | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true, description: 'Fecha de nacimiento; fecha civil serializada a medianoche UTC.' })
+  fecha_nacimiento?: Date | null;
+
   @ApiPropertyOptional({
     description: 'CURP; visible según el rol autorizado.',
     nullable: true,
@@ -135,6 +141,15 @@ export class ClienteDetalleRespuestaDto extends ClienteResumenRespuestaDto {
     nullable: true,
   })
   rfc?: string | null;
+
+  @ApiPropertyOptional({ description: 'Domicilio; visible en el detalle administrativo autorizado.', nullable: true })
+  domicilio?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nombre informativo de quien recomendó al cliente; no implica una relación UUID.', nullable: true })
+  referido_por?: string | null;
+
+  @ApiPropertyOptional({ description: 'Observaciones generales; visibles en el detalle administrativo autorizado.', nullable: true })
+  observaciones_generales?: string | null;
 
   @ApiPropertyOptional({
     description: 'Asesor asignado; visible solo para administración.',

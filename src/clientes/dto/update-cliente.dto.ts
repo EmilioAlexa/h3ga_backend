@@ -3,12 +3,13 @@ import {
   IsEmail,
   IsOptional,
   IsString,
-  Length,
-  MaxLength,
   MinLength,
   ValidateIf,
+  Matches,
+  Validate,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { CURP_FORMATO, RFC_FORMATO, FechaCalendario, NacimientoNoFuturo } from './cliente-validaciones';
 
 const trimText = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -52,7 +53,7 @@ export class UpdateClienteDto {
   )
   @IsOptional()
   @IsString()
-  @Length(18, 18)
+  @Matches(CURP_FORMATO, { message: 'La CURP debe tener un formato válido de 18 caracteres' })
   curp?: string | null;
 
   @ApiPropertyOptional({ description: 'RFC de hasta 13 caracteres; se normaliza a mayúsculas.', maxLength: 13, nullable: true })
@@ -61,6 +62,30 @@ export class UpdateClienteDto {
   )
   @IsOptional()
   @IsString()
-  @MaxLength(13)
+  @Matches(RFC_FORMATO, { message: 'El RFC debe tener un formato válido de 12 o 13 caracteres' })
   rfc?: string | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  @IsOptional()
+  @Validate(FechaCalendario)
+  @Validate(NacimientoNoFuturo)
+  fecha_nacimiento?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nuevo domicilio del cliente.', nullable: true })
+  @Transform(trimText)
+  @IsOptional()
+  @IsString()
+  domicilio?: string | null;
+
+  @ApiPropertyOptional({ description: 'Texto informativo de quién recomendó al cliente; no modifica la relación UUID.', nullable: true })
+  @Transform(trimText)
+  @IsOptional()
+  @IsString()
+  referido_por?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nuevas observaciones generales.', nullable: true })
+  @Transform(trimText)
+  @IsOptional()
+  @IsString()
+  observaciones_generales?: string | null;
 }

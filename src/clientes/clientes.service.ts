@@ -11,6 +11,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { QueryClientesDto } from './dto/query-clientes.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { fechaIngresoActualPrisma, fechaPrisma } from './dto/cliente-validaciones';
 
 type AuthenticatedUser = {
   id: string;
@@ -44,10 +45,19 @@ const clienteListadoSelect = {
   correo_electronico: true,
 } as const;
 
-const clienteDetalleAdministrativoSelect = {
+const clienteDetalleFinancieroSelect = {
   ...clienteListadoSelect,
+  fecha_ingreso: true,
+  fecha_nacimiento: true,
+} as const;
+
+const clienteDetalleAdministrativoSelect = {
+  ...clienteDetalleFinancieroSelect,
   curp: true,
   rfc: true,
+  domicilio: true,
+  referido_por: true,
+  observaciones_generales: true,
 } as const;
 
 const clienteDetalleAdministradorSelect = {
@@ -102,7 +112,7 @@ export class ClientesService {
         ? clienteDetalleAdministradorSelect
         : currentUser.roles.nombre === 'asesor'
           ? clienteDetalleAdministrativoSelect
-          : clienteListadoSelect;
+          : clienteDetalleFinancieroSelect;
 
     const cliente = await this.prisma.clientes.findUnique({ where, select });
 
@@ -128,6 +138,11 @@ export class ClientesService {
           correo_electronico: createClienteDto.correo_electronico,
           curp: createClienteDto.curp,
           rfc: createClienteDto.rfc,
+          fecha_ingreso: fechaIngresoActualPrisma(),
+          fecha_nacimiento: fechaPrisma(createClienteDto.fecha_nacimiento),
+          domicilio: createClienteDto.domicilio,
+          referido_por: createClienteDto.referido_por,
+          observaciones_generales: createClienteDto.observaciones_generales,
           asesor_id: currentUser.id,
       };
       if (!createClienteDto.referido_por_cliente_id) {
@@ -164,7 +179,12 @@ export class ClientesService {
   ) {
     this.ensureCanUpdate(currentUser);
 
-    if (Object.keys(updateClienteDto).length === 0) {
+    const { fecha_nacimiento, ...otrosCampos } = updateClienteDto;
+    const data = Object.fromEntries(
+      Object.entries(otrosCampos).filter(([, value]) => value !== undefined),
+    ) as Prisma.clientesUpdateManyMutationInput;
+    if (fecha_nacimiento !== undefined) data.fecha_nacimiento = fechaPrisma(fecha_nacimiento);
+    if (Object.keys(data).length === 0) {
       throw new BadRequestException('Debe proporcionar al menos un campo');
     }
 
@@ -176,7 +196,7 @@ export class ClientesService {
     try {
       const result = await this.prisma.clientes.updateMany({
         where,
-        data: updateClienteDto,
+        data,
       });
 
       if (result.count === 0) {
