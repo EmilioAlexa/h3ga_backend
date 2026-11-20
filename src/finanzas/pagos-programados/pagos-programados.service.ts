@@ -46,6 +46,7 @@ const programadoSelect = {
       folio: true,
       cliente_id: true,
       asesor_id: true,
+      servicios: { select: { id: true, nombre: true } },
       clientes: {
         select: {
           id: true,
