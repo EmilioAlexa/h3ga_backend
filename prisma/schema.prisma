@@ -51,10 +51,17 @@ model clientes {
   ley_probable                      ley_probable?                       @relation(fields: [ley_probable_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_ley_probable")
   regimen_principal                 regimen_principal?                  @relation(fields: [regimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_regimen")
   contratos                         contratos[]
+<<<<<<< HEAD
+  referidor                         clientes?                            @relation("clientes_referidor", fields: [referido_por_cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_referido_por_cliente")
+  clientes_referidos                clientes[]                           @relation("clientes_referidor")
+  comisiones_como_referidor         comisiones[]                         @relation("comisiones_receptor_cliente")
+  detalle_prenomina_como_referidor  detalle_prenomina[]                  @relation("detalle_prenomina_receptor_cliente")
+=======
   referidor                         clientes?                           @relation("clientes_referidor", fields: [referido_por_cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clientes_referido_por_cliente")
   clientes_referidos                clientes[]                          @relation("clientes_referidor")
   comisiones_como_referidor         comisiones[]                        @relation("comisiones_receptor_cliente")
   detalle_prenomina_como_referidor  detalle_prenomina[]                 @relation("detalle_prenomina_receptor_cliente")
+>>>>>>> main
   historial_referidor_titular       historial_referidor_cliente[]       @relation("historial_referidor_titular")
   historial_referidor_anterior      historial_referidor_cliente[]       @relation("historial_referidor_anterior")
   historial_referidor_nuevo         historial_referidor_cliente[]       @relation("historial_referidor_nuevo")
@@ -292,8 +299,13 @@ model estados_pago {
   historial_estados_pago_historial_estados_pago_estado_anterior_idToestados_pago historial_estados_pago[] @relation("historial_estados_pago_estado_anterior_idToestados_pago")
   historial_estados_pago_historial_estados_pago_estado_nuevo_idToestados_pago    historial_estados_pago[] @relation("historial_estados_pago_estado_nuevo_idToestados_pago")
   pagos                                                                          pagos[]
+<<<<<<< HEAD
+  correcciones_pago_estado_anterior                                              correcciones_pago[]       @relation("correccion_estado_anterior")
+  correcciones_pago_estado_nuevo                                                 correcciones_pago[]       @relation("correccion_estado_nuevo")
+=======
   correcciones_pago_estado_anterior                                              correcciones_pago[]      @relation("correccion_estado_anterior")
   correcciones_pago_estado_nuevo                                                 correcciones_pago[]      @relation("correccion_estado_nuevo")
+>>>>>>> main
 }
 
 model estados_pago_programado {
@@ -311,6 +323,26 @@ model estados_prenomina {
 }
 
 model evidencias_pago {
+<<<<<<< HEAD
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pago_id              String                @db.Uuid
+  tipo_evidencia_id    Int?                  @db.SmallInt
+  archivo_path         String
+  nombre_original      String?
+  tipo_archivo         String?
+  subido_por           String?               @db.Uuid
+  fecha_carga          DateTime              @default(now()) @db.Timestamptz(6)
+  hash_archivo         String?               @db.VarChar(128)
+  tamano_bytes         Int?                  @db.Integer
+  vigente              Boolean               @default(true)
+  correccion_origen_id String?               @db.Uuid
+  correccion_sustitucion_id String?          @db.Uuid
+  pagos                pagos                 @relation(fields: [pago_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_evidencias_pago")
+  tipos_evidencia_pago tipos_evidencia_pago? @relation(fields: [tipo_evidencia_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_tipo")
+  usuarios             usuarios?             @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_usuario")
+  correccion_origen    correcciones_pago?    @relation("evidencia_correccion_origen", fields: [correccion_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_correccion_origen")
+  correccion_sustitucion correcciones_pago? @relation("evidencia_correccion_sustitucion", fields: [correccion_sustitucion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_correccion_sustitucion")
+=======
   id                        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   pago_id                   String                @db.Uuid
   tipo_evidencia_id         Int?                  @db.SmallInt
@@ -329,6 +361,7 @@ model evidencias_pago {
   usuarios                  usuarios?             @relation(fields: [subido_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_usuario")
   correccion_origen         correcciones_pago?    @relation("evidencia_correccion_origen", fields: [correccion_origen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_correccion_origen")
   correccion_sustitucion    correcciones_pago?    @relation("evidencia_correccion_sustitucion", fields: [correccion_sustitucion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evidencias_correccion_sustitucion")
+>>>>>>> main
 
   @@index([correccion_origen_id], map: "ix_evidencias_correccion_origen")
   @@index([correccion_sustitucion_id], map: "ix_evidencias_correccion_sustitucion")
@@ -336,6 +369,37 @@ model evidencias_pago {
 
 /// El CHECK de vigencia y el índice parcial de evidencias vigentes se mantienen en SQL.
 model correcciones_pago {
+<<<<<<< HEAD
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pago_id                  String    @db.Uuid
+  actor_id                 String    @db.Uuid
+  fecha_correccion         DateTime  @default(now()) @db.Timestamptz(6)
+  motivo                   String    @db.VarChar(1000)
+  estado_anterior_id       Int       @db.SmallInt
+  estado_nuevo_id          Int       @db.SmallInt
+  monto_anterior           Decimal   @db.Decimal(12, 2)
+  monto_nuevo              Decimal   @db.Decimal(12, 2)
+  fecha_pago_anterior      DateTime? @db.Timestamptz(6)
+  fecha_pago_nueva         DateTime  @db.Timestamptz(6)
+  forma_pago_id_anterior   Int?      @db.SmallInt
+  forma_pago_id_nueva      Int       @db.SmallInt
+  observaciones_anteriores String?
+  observaciones_nuevas     String?
+  folio_recibo_anterior    String?   @db.VarChar(100)
+  folio_recibo_nuevo       String?   @db.VarChar(100)
+  recibido_por_anterior    String?   @db.Uuid
+  recibido_por_nuevo       String?   @db.Uuid
+  lugar_recepcion_anterior String?   @db.VarChar(150)
+  lugar_recepcion_nuevo    String?   @db.VarChar(150)
+  historial_estado_id      String    @unique(map: "uq_correcciones_pago_historial") @db.Uuid
+  pagos                    pagos     @relation(fields: [pago_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_pago")
+  usuarios                 usuarios @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_actor")
+  historial_estados_pago    historial_estados_pago @relation(fields: [historial_estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_historial")
+  estado_anterior          estados_pago @relation("correccion_estado_anterior", fields: [estado_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_estado_anterior")
+  estado_nuevo             estados_pago @relation("correccion_estado_nuevo", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_estado_nuevo")
+  evidencias_origen        evidencias_pago[] @relation("evidencia_correccion_origen")
+  evidencias_sustituidas  evidencias_pago[] @relation("evidencia_correccion_sustitucion")
+=======
   id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   pago_id                  String                 @db.Uuid
   actor_id                 String                 @db.Uuid
@@ -365,6 +429,7 @@ model correcciones_pago {
   estado_nuevo             estados_pago           @relation("correccion_estado_nuevo", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_correcciones_pago_estado_nuevo")
   evidencias_origen        evidencias_pago[]      @relation("evidencia_correccion_origen")
   evidencias_sustituidas   evidencias_pago[]      @relation("evidencia_correccion_sustitucion")
+>>>>>>> main
 
   @@index([pago_id, fecha_correccion], map: "ix_correcciones_pago_pago_fecha")
   @@index([actor_id], map: "ix_correcciones_pago_actor")
@@ -385,10 +450,17 @@ model historial_estados_pago {
   cambiado_por                                                         String?            @db.Uuid
   fecha_cambio                                                         DateTime           @default(now()) @db.Timestamptz(6)
   comentario                                                           String?
+<<<<<<< HEAD
+  estados_pago_historial_estados_pago_estado_anterior_idToestados_pago estados_pago? @relation("historial_estados_pago_estado_anterior_idToestados_pago", fields: [estado_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_anterior")
+  estados_pago_historial_estados_pago_estado_nuevo_idToestados_pago    estados_pago? @relation("historial_estados_pago_estado_nuevo_idToestados_pago", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_nuevo")
+  pagos                                                                pagos         @relation(fields: [pago_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_historial_pago")
+  usuarios                                                             usuarios?     @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_usuario")
+=======
   estados_pago_historial_estados_pago_estado_anterior_idToestados_pago estados_pago?      @relation("historial_estados_pago_estado_anterior_idToestados_pago", fields: [estado_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_anterior")
   estados_pago_historial_estados_pago_estado_nuevo_idToestados_pago    estados_pago?      @relation("historial_estados_pago_estado_nuevo_idToestados_pago", fields: [estado_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_estado_nuevo")
   pagos                                                                pagos              @relation(fields: [pago_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_historial_pago")
   usuarios                                                             usuarios?          @relation(fields: [cambiado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_usuario")
+>>>>>>> main
   correcciones_pago                                                    correcciones_pago?
 }
 
@@ -430,6 +502,29 @@ model pagos {
 }
 
 model pagos_programados {
+<<<<<<< HEAD
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id             String                   @db.Uuid
+  tipo_cobro_id           Int?                     @db.SmallInt
+  numero_pago             Int
+  fecha_esperada          DateTime?                @db.Date
+  fecha_vencimiento       DateTime?                @db.Date
+  monto_esperado          Decimal?                 @db.Decimal(12, 2)
+  periodo                 DateTime?                @db.Date
+  estado_id               Int?                     @db.SmallInt
+  justificacion_duplicado String?
+  motivo_penalizacion     String?
+  clasificacion_tope_apd  ClasificacionTopeApd?
+  monto_recibido_beneficiario_apd Decimal? @db.Decimal(12, 2)
+  cancelado_por           String?                  @db.Uuid
+  cancelado_en            DateTime?                @db.Timestamptz(6)
+  motivo_cancelacion     String?
+  pagos                   pagos[]
+  contratos               contratos                @relation(fields: [contrato_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pagos_programados_contrato")
+  estados_pago_programado estados_pago_programado? @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programados_estado")
+  tipos_cobro             tipos_cobro?             @relation(fields: [tipo_cobro_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programados_tipo_cobro")
+  usuario_cancelador      usuarios?                @relation("programado_cancelado_por", fields: [cancelado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_programados_cancelado_por")
+=======
   id                              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   contrato_id                     String                   @db.Uuid
   tipo_cobro_id                   Int?                     @db.SmallInt
@@ -451,6 +546,7 @@ model pagos_programados {
   estados_pago_programado         estados_pago_programado? @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programados_estado")
   tipos_cobro                     tipos_cobro?             @relation(fields: [tipo_cobro_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagos_programados_tipo_cobro")
   usuario_cancelador              usuarios?                @relation("programado_cancelado_por", fields: [cancelado_por], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_programados_cancelado_por")
+>>>>>>> main
 
   @@index([contrato_id, fecha_esperada, monto_esperado], map: "ix_programados_coincidencia")
 }
@@ -652,7 +748,11 @@ model usuarios {
   historial_referidor_cliente                                                       historial_referidor_cliente[]
   clientes_eliminaciones                                                            clientes_eliminaciones[]
   historial_estados_comisiones                                                      historial_estados_comisiones[]
+<<<<<<< HEAD
+  dispersiones_comision                                                             dispersiones_comision[]              @relation("dispersiones_confirmador")
+=======
   dispersiones_comision                                                             dispersiones_comision[]               @relation("dispersiones_confirmador")
+>>>>>>> main
   historial_estados_corte                                                           historial_estados_corte[]
   versiones_documento_versiones_documento_revisor_idTousuarios                      versiones_documento[]                 @relation("versiones_documento_revisor_idTousuarios")
   versiones_documento_versiones_documento_subido_porTousuarios                      versiones_documento[]                 @relation("versiones_documento_subido_porTousuarios")
@@ -1300,6 +1400,19 @@ model historial_configuracion_dispersion {
 }
 
 model historial_referidor_cliente {
+<<<<<<< HEAD
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cliente_id             String   @db.Uuid
+  referidor_anterior_id  String?  @db.Uuid
+  referidor_nuevo_id     String?  @db.Uuid
+  actor_id               String   @db.Uuid
+  motivo                 String
+  fecha_cambio           DateTime @default(now()) @db.Timestamptz(6)
+  cliente_titular        clientes @relation("historial_referidor_titular", fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_titular")
+  cliente_anterior       clientes? @relation("historial_referidor_anterior", fields: [referidor_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_anterior")
+  cliente_nuevo          clientes? @relation("historial_referidor_nuevo", fields: [referidor_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_nuevo")
+  usuarios_actor         usuarios @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_actor")
+=======
   id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   cliente_id            String    @db.Uuid
   referidor_anterior_id String?   @db.Uuid
@@ -1311,6 +1424,7 @@ model historial_referidor_cliente {
   cliente_anterior      clientes? @relation("historial_referidor_anterior", fields: [referidor_anterior_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_anterior")
   cliente_nuevo         clientes? @relation("historial_referidor_nuevo", fields: [referidor_nuevo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_nuevo")
   usuarios_actor        usuarios  @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_referidor_actor")
+>>>>>>> main
 
   @@index([cliente_id, fecha_cambio], map: "ix_historial_referidor_cliente_fecha")
   @@index([referidor_anterior_id], map: "ix_historial_referidor_anterior")
