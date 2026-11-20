@@ -49,9 +49,9 @@ function preflight() {
   const report = JSON.parse(check.stdout);
   if (report.actual.database !== target.database || report.actual.schema !== target.schema ||
       Number(report.actual.port) !== target.port || !['127.0.0.1', '::1'].includes(report.actual.address) ||
-      report.migrations_applied !== 27) throw new Error('Identidad o migraciones incompatibles con Test');
+      report.migrations_applied !== 28) throw new Error('Identidad o migraciones incompatibles con Test');
   const status = run(['-r', path.join(root, 'test', 'test-environment.cjs'), path.join(root, 'node_modules', 'prisma', 'build', 'index.js'), 'migrate', 'status']);
-  if (status.status !== 0 || !status.stdout.includes('27 migrations found') || !status.stdout.includes('Database schema is up to date!')) {
+  if (status.status !== 0 || !status.stdout.includes('28 migrations found') || !status.stdout.includes('Database schema is up to date!')) {
     throw new Error('Prisma detectó migraciones pendientes o inesperadas');
   }
 }
@@ -84,7 +84,7 @@ async function inspect() {
     const manifestIds = manifest ? Object.values(manifest.clientes).filter(x => x && x.id).map(x => x.id) : [];
     const persisted = manifestIds.length ? (await client.query('SELECT id, asesor_id, referido_por_cliente_id FROM clientes WHERE id = ANY($1::uuid[])', [manifestIds])).rows : [];
     await client.query('COMMIT');
-    return { destino: `${target.host}:${target.port}/${target.database}/${target.schema}`, migraciones: '27/27', lote: batch, usuarios: users, catalogos: catalogs, posibles_coincidencias_nombre: possibleCollisions, manifiesto: manifest ? { clientes: manifest.clientes, pendiente: manifest.pendiente ?? null, encontrados: persisted.length } : null };
+    return { destino: `${target.host}:${target.port}/${target.database}/${target.schema}`, migraciones: '28/28', lote: batch, usuarios: users, catalogos: catalogs, posibles_coincidencias_nombre: possibleCollisions, manifiesto: manifest ? { clientes: manifest.clientes, pendiente: manifest.pendiente ?? null, encontrados: persisted.length } : null };
   } finally { client.release(); await pool.end(); }
 }
 

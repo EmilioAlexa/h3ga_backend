@@ -53,19 +53,19 @@ function verifyDatabase() {
     report.actual.schema !== target.schema ||
     Number(report.actual.port) !== target.port ||
     !['127.0.0.1', '::1'].includes(report.actual.address) ||
-    report.migrations_applied !== 27
+    report.migrations_applied !== 28
   ) {
-    throw new Error('La base efectiva o las 27 migraciones de Test no coinciden');
+    throw new Error('La base efectiva o las 28 migraciones de Test no coinciden');
   }
   const status = runNode([
     '-r', path.join(projectRoot, 'test', 'test-environment.cjs'),
     path.join(projectRoot, 'node_modules', 'prisma', 'build', 'index.js'),
     'migrate', 'status',
   ]);
-  if (!status.includes('27 migrations found') || !status.includes('Database schema is up to date!')) {
+  if (!status.includes('28 migrations found') || !status.includes('Database schema is up to date!')) {
     throw new Error('Prisma detectó migraciones pendientes o inesperadas');
   }
-  console.log('PostgreSQL Test verificado: localhost:5433/h3ga_finanzas_test/public; 27/27 migraciones.');
+  console.log('PostgreSQL Test verificado: localhost:5433/h3ga_finanzas_test/public; 28/28 migraciones.');
 }
 
 async function assertPortAvailable(httpPort) {
