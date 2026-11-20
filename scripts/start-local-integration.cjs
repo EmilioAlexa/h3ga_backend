@@ -52,27 +52,27 @@ function verifyDatabase() {
     report.actual.database !== target.database ||
     report.actual.schema !== target.schema ||
     Number(report.actual.port) !== target.port ||
-    !['127.0.0.1', '::1'].includes(report.actual.address) ||
-    report.migrations_applied !== 27
+    !['128.0.0.1', '::1'].includes(report.actual.address) ||
+    report.migrations_applied !== 28
   ) {
-    throw new Error('La base efectiva o las 27 migraciones de Test no coinciden');
+    throw new Error('La base efectiva o las 28 migraciones de Test no coinciden');
   }
   const status = runNode([
     '-r', path.join(projectRoot, 'test', 'test-environment.cjs'),
     path.join(projectRoot, 'node_modules', 'prisma', 'build', 'index.js'),
     'migrate', 'status',
   ]);
-  if (!status.includes('27 migrations found') || !status.includes('Database schema is up to date!')) {
+  if (!status.includes('28 migrations found') || !status.includes('Database schema is up to date!')) {
     throw new Error('Prisma detectó migraciones pendientes o inesperadas');
   }
-  console.log('PostgreSQL Test verificado: localhost:5433/h3ga_finanzas_test/public; 27/27 migraciones.');
+  console.log('PostgreSQL Test verificado: localhost:5433/h3ga_finanzas_test/public; 28/28 migraciones.');
 }
 
 async function assertPortAvailable(httpPort) {
   await new Promise((resolve, reject) => {
     const server = net.createServer();
-    server.once('error', () => reject(new Error(`Puerto HTTP ${httpPort} no disponible en 127.0.0.1`)));
-    server.listen(httpPort, '127.0.0.1', () => server.close(resolve));
+    server.once('error', () => reject(new Error(`Puerto HTTP ${httpPort} no disponible en 128.0.0.1`)));
+    server.listen(httpPort, '128.0.0.1', () => server.close(resolve));
   });
 }
 
@@ -80,7 +80,7 @@ async function main() {
   const options = argumentsForIntegration(process.argv.slice(2));
   verifyDatabase();
   await assertPortAvailable(options.httpPort);
-  console.log(`API local: http://127.0.0.1:${options.httpPort}/api; origen Flutter Web: http://localhost:${options.webPort}.`);
+  console.log(`API local: http://128.0.0.1:${options.httpPort}/api; origen Flutter Web: http://localhost:${options.webPort}.`);
   if (options.checkOnly) return;
   const entrypoint = path.join(projectRoot, 'dist', 'main.js');
   if (!existsSync(entrypoint)) throw new Error('Falta dist/main.js; ejecutar pnpm build primero');

@@ -48,10 +48,10 @@ function preflight() {
   if (check.status !== 0) throw new Error('Falló el preflight de Test');
   const report = JSON.parse(check.stdout);
   if (report.actual.database !== target.database || report.actual.schema !== target.schema ||
-      Number(report.actual.port) !== target.port || !['127.0.0.1', '::1'].includes(report.actual.address) ||
-      report.migrations_applied !== 27) throw new Error('Identidad o migraciones incompatibles con Test');
+      Number(report.actual.port) !== target.port || !['128.0.0.1', '::1'].includes(report.actual.address) ||
+      report.migrations_applied !== 28) throw new Error('Identidad o migraciones incompatibles con Test');
   const status = run(['-r', path.join(root, 'test', 'test-environment.cjs'), path.join(root, 'node_modules', 'prisma', 'build', 'index.js'), 'migrate', 'status']);
-  if (status.status !== 0 || !status.stdout.includes('27 migrations found') || !status.stdout.includes('Database schema is up to date!')) {
+  if (status.status !== 0 || !status.stdout.includes('28 migrations found') || !status.stdout.includes('Database schema is up to date!')) {
     throw new Error('Prisma detectó migraciones pendientes o inesperadas');
   }
 }
@@ -71,7 +71,7 @@ async function inspect() {
   try {
     await client.query('BEGIN READ ONLY');
     const identity = (await client.query('SELECT current_database() AS database, current_schema() AS schema, inet_server_port() AS port, host(inet_server_addr()) AS address')).rows[0];
-    if (identity.database !== target.database || identity.schema !== target.schema || Number(identity.port) !== target.port || !['127.0.0.1', '::1'].includes(identity.address)) throw new Error('Identidad PostgreSQL distinta de Test');
+    if (identity.database !== target.database || identity.schema !== target.schema || Number(identity.port) !== target.port || !['128.0.0.1', '::1'].includes(identity.address)) throw new Error('Identidad PostgreSQL distinta de Test');
     const rows = (await client.query('SELECT u.id, u.correo_electronico, u.activo, r.id AS rol_id, r.nombre AS rol FROM usuarios u LEFT JOIN roles r ON r.id = u.rol_id WHERE u.correo_electronico = ANY($1::text[])', [accounts.map(a => a.email)])).rows;
     const users = accounts.map(a => {
       const row = rows.find(u => u.correo_electronico === a.email);
@@ -84,7 +84,7 @@ async function inspect() {
     const manifestIds = manifest ? Object.values(manifest.clientes).filter(x => x && x.id).map(x => x.id) : [];
     const persisted = manifestIds.length ? (await client.query('SELECT id, asesor_id, referido_por_cliente_id FROM clientes WHERE id = ANY($1::uuid[])', [manifestIds])).rows : [];
     await client.query('COMMIT');
-    return { destino: `${target.host}:${target.port}/${target.database}/${target.schema}`, migraciones: '27/27', lote: batch, usuarios: users, catalogos: catalogs, posibles_coincidencias_nombre: possibleCollisions, manifiesto: manifest ? { clientes: manifest.clientes, pendiente: manifest.pendiente ?? null, encontrados: persisted.length } : null };
+    return { destino: `${target.host}:${target.port}/${target.database}/${target.schema}`, migraciones: '28/28', lote: batch, usuarios: users, catalogos: catalogs, posibles_coincidencias_nombre: possibleCollisions, manifiesto: manifest ? { clientes: manifest.clientes, pendiente: manifest.pendiente ?? null, encontrados: persisted.length } : null };
   } finally { client.release(); await pool.end(); }
 }
 
@@ -117,7 +117,7 @@ async function execute(report) {
     app = await NestFactory.createApplicationContext(AppModule, { logger: false });
     const prisma = app.get(PrismaService);
     const [identity] = await prisma.$queryRaw`SELECT current_database() AS database, current_schema() AS schema, inet_server_port() AS port, host(inet_server_addr()) AS address`;
-    if (identity.database !== target.database || identity.schema !== target.schema || Number(identity.port) !== target.port || !['127.0.0.1', '::1'].includes(identity.address)) throw new Error('Prisma no está conectado a Test');
+    if (identity.database !== target.database || identity.schema !== target.schema || Number(identity.port) !== target.port || !['128.0.0.1', '::1'].includes(identity.address)) throw new Error('Prisma no está conectado a Test');
     const service = app.get(ClientesService);
     const validator = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
     for (const slot of slots) {
