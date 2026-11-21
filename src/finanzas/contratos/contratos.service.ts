@@ -38,7 +38,7 @@ const contratoSelect = {
       apellido_materno: true,
     },
   },
-  servicios: { select: { id: true, nombre: true } },
+  servicios: { select: { id: true, nombre: true, codigo_folio: true } },
   usuarios: {
     select: {
       id: true,

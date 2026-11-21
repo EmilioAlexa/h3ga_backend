@@ -148,6 +148,7 @@ export class ComisionesService {
       ...(referralReady ? { receptor_cliente_id: true as const } : {}),
       tipo_calculo: true, valor_aplicado: true,
       conceptos_dispersion: true, estados_comisiones: true,
+      historial_estados_comisiones: { orderBy: { fecha_cambio: 'asc' }, select: { cambiado_por: true, fecha_cambio: true, comentario: true } },
       pagos: { select: { id: true, fecha_pago: true, contratos: { select: { id: true, folio: true, asesor_id: true } } } },
     } }), this.prisma.comisiones.count({ where })]);
     return { data, page: query.page, limit: query.limit, total };
@@ -232,6 +233,48 @@ export class ComisionesService {
         catch { this.logger.error('No se pudo compensar el comprobante de una dispersión no registrada'); }
       }
     }
+  }
+
+  async administrativeDistribution(paymentId: string, user: UsuarioAutenticado, selected?: string[], general = false) {
+    this.ensureAdmin(user);
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "pagos" WHERE "id" = ${paymentId}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "comisiones" WHERE "pago_id" = ${paymentId}::uuid ORDER BY "id" FOR UPDATE`);
+      const payment = await tx.pagos.findUnique({ where: { id: paymentId }, select: { estados_pago: { select: { nombre: true } } } });
+      if (!payment) throw new NotFoundException('Pago no encontrado');
+      const rows = await tx.comisiones.findMany({ where: { pago_id: paymentId }, orderBy: { id: 'asc' },
+        include: { estados_comisiones: true, conceptos_dispersion: true, dispersiones_comision: true } });
+      const reserved = await tx.cortes_pagos_reservados.count({ where: { pago_id: paymentId } });
+      const preview = rows.map(row => ({ id: row.id, concepto: row.conceptos_dispersion.nombre,
+        receptor: row.conceptos_dispersion.nombre === 'Referidor' ? 'Referidor' : row.receptor_nombre_snapshot,
+        porcentaje: row.valor_aplicado.toString(), importe: row.monto_comision.toFixed(2), estado: row.estados_comisiones.nombre,
+        bloqueo: row.estados_comisiones.nombre === ESTADO_DISPERSADA ? 'Ya dispersada' :
+          row.estados_comisiones.nombre !== ESTADO_PENDIENTE ? 'Estado no elegible' :
+          payment.estados_pago?.nombre !== 'Validado' ? 'Pago no validado' :
+          reserved ? 'Pago reservado en un corte' : row.detalle_prenomina_id ? 'Incluida en prenomina' :
+          row.dispersiones_comision ? 'Tiene transferencia confirmada' : null }));
+      if (!selected) return { pago_id: paymentId, conceptos: preview };
+      const eligibleIds = preview.filter(r => r.estado !== ESTADO_DISPERSADA).map(r => r.id);
+      if (!general && selected.length !== 1) throw new ConflictException('Selecciona un concepto para confirmacion individual');
+      if (general && (selected.length !== eligibleIds.length || eligibleIds.some(id => !selected.includes(id)))) {
+        throw new ConflictException('La distribucion cambio; consulta nuevamente la vista previa');
+      }
+      const targets = selected.map(id => preview.find(r => r.id === id));
+      if (targets.some(r => !r || r.bloqueo)) throw new ConflictException({ message: 'No se confirmo ningun concepto', conceptos: targets });
+      const next = await tx.estados_comisiones.findUnique({ where: { nombre: ESTADO_DISPERSADA } });
+      if (!next) throw new ConflictException('Falta el estado Dispersada');
+      for (const target of targets) {
+        const row = rows.find(r => r.id === target!.id)!;
+        const changed = await tx.comisiones.updateMany({ where: { id: row.id, estado_id: row.estado_id }, data: { estado_id: next.id } });
+        if (changed.count !== 1) throw new ConflictException('La comision cambio durante la confirmacion');
+        await tx.historial_estados_comisiones.create({ data: { comision_id: row.id,
+          estado_anterior_id: row.estado_id, estado_nuevo_id: next.id, cambiado_por: user.id,
+          comentario: JSON.stringify({ operacion: 'confirmacion_administrativa', pago_id: paymentId,
+            importe: target!.importe, porcentaje: target!.porcentaje, concepto: target!.concepto,
+            receptor: target!.receptor, alcance: general ? 'general' : 'individual' }) } });
+      }
+      return { pago_id: paymentId, confirmadas: selected, operacion: 'confirmacion_administrativa' };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async downloadDisbursementProof(id: string, user: UsuarioAutenticado) {
