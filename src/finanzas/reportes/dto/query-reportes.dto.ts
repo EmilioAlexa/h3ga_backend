@@ -1,8 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, MaxLength, Matches, Max, Min } from 'class-validator';
 
 export class QueryReportesFinancierosDto {
+  @IsOptional() @IsString() @MaxLength(100)
+  servicio?: string;
+  @IsOptional() @IsString() @MaxLength(100)
+  tipo_venta?: string;
+  @IsOptional() @IsString() @MaxLength(100)
+  metodo_pago?: string;
+
   @ApiProperty({ description: 'Inicio del periodo como fecha local America/Cancun.', example: '2026-01-01' })
   @IsDateString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)

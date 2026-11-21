@@ -52,4 +52,15 @@ describe('FinancialDashboardService', () => {
     expect(sql[4].values).toContain(id);
     expect(sql[5].values).toContain(id);
   });
+  it('separates administrative confirmations from historical transfers without adding them twice', async () => {
+    const queries: Prisma.Sql[] = [];
+    const rows = [{concepto_id:1, concepto:'Asesor', estado:'Dispersada', monto:'30.00', cantidad:2, es_remanente:false, dispersado_confirmado:'10.00', confirmado_administrativo:'20.00'}];
+    const service = new FinancialDashboardService({$transaction: async (callback: (tx: unknown) => unknown) => callback({$queryRaw: async (sql: Prisma.Sql) => {queries.push(sql); return queries.length === 5 ? rows : [];}})} as never);
+    const result = await service.get({semana:'2026-11-13',limite:5},admin);
+    expect(result.indicadores.comisiones_confirmadas_administrativamente).toBe('20.00');
+    expect(result.indicadores.transferencias_historicas).toBe('10.00');
+    expect(result.comisiones.total_distribuciones_snapshot).toBe('30.00');
+    expect(queries[4].sql).toContain('AND d."id" IS NULL');
+  });
+
 });

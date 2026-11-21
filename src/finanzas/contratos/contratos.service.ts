@@ -20,6 +20,9 @@ type UsuarioAutenticado = {
 const ROLES_ADMINISTRATIVOS = ['administrador', 'administrador financiero'];
 
 const contratoSelect = {
+  seguimiento_m10: { select: { monto_mensual: true, periodo_contrato: true } },
+  seguimiento_m40: { select: { salario_diario: true, cantidad_meses: true, fecha_fin: true, monto_mensual: true } },
+  seguimiento_m40_retroactiva: { select: { salario_diario: true } },
   id: true,
   cliente_id: true,
   servicio_id: true,
@@ -228,6 +231,7 @@ export class ContratosService {
           throw new ConflictException('El consecutivo supera la longitud del folio contractual');
         }
 
+        const conditions = this.contractConditions(dto, servicio.codigo_folio);
         return tx.contratos.create({
           data: {
             cliente_id: dto.cliente_id,
@@ -239,6 +243,7 @@ export class ContratosService {
             cantidad_pagos: dto.cantidad_pagos,
             observaciones: dto.observaciones,
             creado_en: momento.instante,
+            ...conditions,
           },
           select: contratoSelect,
         });
@@ -275,6 +280,29 @@ export class ContratosService {
     } catch (error) {
       this.handlePrismaError(error);
     }
+  }
+
+  private contractConditions(dto: CreateContratoDto, modality: string) {
+    for (const key of ['salario_diario','monto_mensual','periodo_contrato','fecha_fin'] as const) {
+      if (dto[key] === null) throw new BadRequestException('Las condiciones opcionales deben omitirse cuando no existen');
+    }
+    for (const value of [dto.salario_diario, dto.monto_mensual]) {
+      if (value !== undefined && new Prisma.Decimal(value).isNegative()) throw new BadRequestException('Los importes deben ser positivos o cero');
+    }
+    if (dto.salario_diario !== undefined && !['M40', 'M40R'].includes(modality)) throw new BadRequestException('Salario diario no disponible para esta modalidad');
+    if (dto.monto_mensual !== undefined && !['M10', 'M40'].includes(modality)) throw new BadRequestException('Monto mensual no disponible para esta modalidad');
+    if (dto.periodo_contrato !== undefined && !['M10', 'M40'].includes(modality)) throw new BadRequestException('Periodo contractual no disponible para esta modalidad');
+    if (dto.fecha_fin && (modality !== 'M40' || dto.fecha_fin < dto.fecha_contrato)) throw new BadRequestException('Fecha de t?rmino incompatible');
+    if (dto.salario_diario !== undefined && new Prisma.Decimal(dto.salario_diario).greaterThan('99999999.99')) throw new BadRequestException('Salario fuera de rango');
+    if (dto.monto_mensual !== undefined && new Prisma.Decimal(dto.monto_mensual).greaterThan('9999999999.99')) throw new BadRequestException('Monto mensual fuera de rango');
+    if (modality === 'M10' && (dto.monto_mensual !== undefined || dto.periodo_contrato !== undefined)) return { seguimiento_m10: {create: {monto_mensual: dto.monto_mensual, periodo_contrato: dto.periodo_contrato}} };
+    if (modality === 'M40' && [dto.salario_diario,dto.monto_mensual,dto.periodo_contrato,dto.fecha_fin].some(v => v !== undefined)) {
+      const months: Record<string, number | null> = {'6 meses':6, '12 meses':12, '24 meses':24, 'Indefinido':null};
+      if (dto.periodo_contrato && !(dto.periodo_contrato in months)) throw new BadRequestException('Periodo M40 incompatible');
+      return {seguimiento_m40: {create: {salario_diario:dto.salario_diario, monto_mensual:dto.monto_mensual, cantidad_meses:dto.periodo_contrato ? months[dto.periodo_contrato] : undefined, fecha_fin:dto.fecha_fin}}};
+    }
+    if (modality === 'M40R' && dto.salario_diario !== undefined) return {seguimiento_m40_retroactiva: {create: {salario_diario:dto.salario_diario}}};
+    return {};
   }
 
   private ensureCanRead(usuario: UsuarioAutenticado): void {

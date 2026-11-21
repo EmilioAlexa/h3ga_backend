@@ -23,7 +23,15 @@ export class ReportesFinancierosService {
     const ranges = this.ranges(query);
     const current = await this.queryIngresos(ranges.current, query);
     const previous = query.comparar ? await this.queryIngresos(ranges.previous!, query) : null;
-    return this.response(query, ranges, current, previous, (rows) => this.sumRows(rows, 'monto'));
+    const result = this.response(query, ranges, current, previous, (rows) => this.sumRows(rows, 'monto'));
+    const byService = await this.prisma.$queryRaw<AggregateRow[]>(Prisma.sql`
+      SELECT s."nombre" AS servicio, SUM(p."monto") AS monto
+      FROM "pagos" p JOIN "estados_pago" ep ON ep."id"=p."estado_pago_id"
+      JOIN "contratos" ct ON ct."id"=p."contrato_id" JOIN "servicios" s ON s."id"=ct."servicio_id"
+      LEFT JOIN "seguimiento_apd" sv ON sv."contrato_id"=p."contrato_id"
+      WHERE ${this.paymentWhere(ranges.current, query)} GROUP BY s."nombre" ORDER BY s."nombre"
+    `);
+    return {...result, por_servicio: byService.map((row) => ({servicio: row.servicio, monto: this.decimal(row.monto).toFixed(2), porcentaje: this.percentage(row.monto, this.decimal(result.resumen.total))}))};
   }
 
   async comisionesPorDestino(query: QueryReportesFinancierosDto, user: AuthUser) {
@@ -37,7 +45,7 @@ export class ReportesFinancierosService {
       porcentaje_del_total: this.percentage(row.monto_comision, total),
     }));
     const priorTotal = previous ? this.sumRows(previous, 'monto_comision') : null;
-    return this.response(query, ranges, data, previous, (rows) => this.sumRows(rows, 'monto_comision'), total, priorTotal);
+    return this.response(query, ranges, data, previous, (rows) => this.sumRows(rows, 'monto_comision'), total, priorTotal, {total_personas: this.sumRows(current.filter((row) => !['IMSS', 'Empresa'].includes(String(row.destino))), 'monto_comision').toFixed(2)});
   }
 
   async comisionesPorTipoVenta(query: QueryReportesFinancierosDto, user: AuthUser) {
@@ -232,6 +240,9 @@ export class ReportesFinancierosService {
     ];
     if (query.forma_pago_id) clauses.push(Prisma.sql`p."forma_pago_id" = ${query.forma_pago_id}`);
     if (query.tipo_venta_id) clauses.push(Prisma.sql`sv."tipo_venta_id" = ${query.tipo_venta_id}`);
+    if (query.servicio) clauses.push(Prisma.sql`EXISTS (SELECT 1 FROM "contratos" fc JOIN "servicios" fs ON fs."id"=fc."servicio_id" WHERE fc."id"=p."contrato_id" AND fs."nombre"=${query.servicio})`);
+    if (query.tipo_venta) clauses.push(Prisma.sql`EXISTS (SELECT 1 FROM "tipos_venta" ft WHERE ft."id"=sv."tipo_venta_id" AND ft."nombre"=${query.tipo_venta})`);
+    if (query.metodo_pago) clauses.push(Prisma.sql`EXISTS (SELECT 1 FROM "formas_pago" fm WHERE fm."id"=p."forma_pago_id" AND fm."nombre"=${query.metodo_pago})`);
     if (commission) clauses.push(Prisma.sql`c."id" IS NOT NULL`);
     return Prisma.join(clauses, ' AND ');
   }
