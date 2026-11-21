@@ -130,6 +130,7 @@ model dispersiones_comision {
 }
 
 model contratos {
+  documentos_contrato documentos_contrato[]
   id                                 String                               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   cliente_id                         String                               @db.Uuid
   servicio_id                        Int                                  @db.SmallInt
@@ -608,6 +609,7 @@ model tipos_venta {
 }
 
 model usuarios {
+  documentos_contrato documentos_contrato[]
   id                                                                                String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   rol_id                                                                            Int                                   @db.SmallInt
   nombre                                                                            String
@@ -1800,4 +1802,21 @@ model cliente_auxiliares {
   @@unique([cliente_id, auxiliar_id], map: "cliente_auxiliares_cliente_id_auxiliar_id_key")
   @@index([auxiliar_id, activo], map: "cliente_auxiliares_auxiliar_id_activo_idx")
   @@index([cliente_id, activo], map: "cliente_auxiliares_cliente_id_activo_idx")
+}
+
+model documentos_contrato {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id String @db.Uuid
+  subido_por String @db.Uuid
+  solicitud_id String @db.Uuid
+  nombre_original String @db.VarChar(255)
+  mime_type String @db.VarChar(50)
+  tamano_bytes Int
+  clave_privada String @unique(map: "uq_documentos_contrato_clave")
+  sha256 String @db.VarChar(64)
+  creado_en DateTime @default(now()) @db.Timestamptz(6)
+  contratos contratos @relation(fields:[contrato_id], references:[id], onDelete:Restrict, onUpdate:NoAction)
+  usuarios usuarios @relation(fields:[subido_por], references:[id], onDelete:Restrict, onUpdate:NoAction)
+  @@unique([contrato_id, solicitud_id], map:"uq_documentos_contrato_solicitud")
+  @@index([contrato_id, creado_en, id], map:"ix_documentos_contrato_fecha")
 }

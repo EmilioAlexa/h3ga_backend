@@ -13,20 +13,44 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateContratoDto {
-  @ApiPropertyOptional({description: 'Salario diario expl?cito para M40/M40R. No calcula cuotas.'})
-  @IsOptional() @IsDecimal({decimal_digits: '0,2', force_decimal: false})
+  @ApiPropertyOptional({
+    description:
+      'ID real del tipo de venta activo Cambaceo/Marketing. Persistencia disponible solo para APD.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(32767)
+  tipo_venta_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Salario diario expl?cito para M40/M40R. No calcula cuotas.',
+  })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '0,2', force_decimal: false })
   salario_diario?: string;
 
-  @ApiPropertyOptional({description: 'Monto mensual expl?cito para M10/M40.'})
-  @IsOptional() @IsDecimal({decimal_digits: '0,2', force_decimal: false})
+  @ApiPropertyOptional({ description: 'Monto mensual expl?cito para M10/M40.' })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '0,2', force_decimal: false })
   monto_mensual?: string;
 
-  @ApiPropertyOptional({description: 'Periodo descriptivo M10; M40 admite 6, 12, 24 meses o Indefinido.'})
-  @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional({
+    description:
+      'Periodo descriptivo M10; M40 admite 6, 12, 24 meses o Indefinido.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   periodo_contrato?: string;
 
-  @ApiPropertyOptional({description: 'Fecha de t?rmino expl?cita, ?nicamente M40.'})
-  @IsOptional() @Type(() => Date) @IsDate()
+  @ApiPropertyOptional({
+    description: 'Fecha de t?rmino expl?cita, ?nicamente M40.',
+  })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
   fecha_fin?: Date;
 
   @ApiProperty({ description: 'UUID de un cliente existente.', format: 'uuid' })

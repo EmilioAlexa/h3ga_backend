@@ -109,6 +109,33 @@ describe('ContratosService advisor policy', () => {
     expect(tx.contratos.create).not.toHaveBeenCalled();
   });
 
+  it.each(['Cambaceo','Marketing'])('stores the real APD sale type %s without generating obligations', async (name) => {
+    tx.tipos_venta = {findUnique:jest.fn().mockResolvedValue({id:77,nombre:name,activo:true})};
+    await service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1,tipo_venta_id:77} as any,{id:advisorId,activo:true,roles:{nombre:'asesor'}});
+    expect(tx.contratos.create.mock.calls[0][0].data.seguimiento_apd).toEqual({create:{tipo_venta_id:77}});
+    expect(tx.contratos.create.mock.calls[0][0].data.pagos_programados).toBeUndefined();
+  });
+  it.each(['M10','M40','M40R'])('rejects APD sale type on %s', async (code) => {
+    tx.servicios.findUnique.mockResolvedValue({id:1,codigo_folio:code});
+    await expect(service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1,tipo_venta_id:77} as any,{id:advisorId,activo:true,roles:{nombre:'asesor'}})).rejects.toThrow('solo almacena tipo de venta en APD');
+    expect(tx.contratos.create).not.toHaveBeenCalled();
+  });
+  it('rejects inactive sale types and exposes only real authorized options', async () => {
+    tx.tipos_venta = {findUnique:jest.fn().mockResolvedValue({id:77,nombre:'Marketing',activo:false})};
+    await expect(service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1,tipo_venta_id:77} as any,{id:advisorId,activo:true,roles:{nombre:'asesor'}})).rejects.toThrow('Tipo de venta no disponible');
+    prisma.servicios = {findMany:jest.fn().mockResolvedValue([])};
+    prisma.estados_contratos = {findMany:jest.fn().mockResolvedValue([])};
+    prisma.tipos_venta = {findMany:jest.fn().mockResolvedValue([])};
+    expect((await service.options({id:advisorId,activo:true,roles:{nombre:'asesor'}})).tipos_venta).toEqual([]);
+    await expect(service.options({id:advisorId,activo:false,roles:{nombre:'asesor'}})).rejects.toMatchObject({status:403});
+    await expect(service.options({id:advisorId,activo:true,roles:{nombre:'auxiliar administrativo'}})).rejects.toMatchObject({status:403});
+  });
+  it.each(['APD','M40R','M10','M40'])('creates %s independently of the pending document schema',async(code)=>{
+    service=new ContratosService(prisma as any,{capabilities:jest.fn().mockRejectedValue(new Error('document schema pending'))} as any);
+    tx.servicios.findUnique.mockResolvedValue({id:1,codigo_folio:code});
+    await service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1} as any,{id:advisorId,activo:true,roles:{nombre:'asesor'}});
+    expect(tx.contratos.create).toHaveBeenCalledTimes(1);
+  });
   it('rejects a service without an approved folio code', async () => {
     tx.servicios.findUnique.mockResolvedValueOnce({ id: 1, codigo_folio: null });
     await expect(service.create({

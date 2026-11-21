@@ -15,6 +15,7 @@ import { StorageService, StoredObject } from './storage.service';
 const CONTENT_EXTENSIONS: Record<string, string> = {
   'application/pdf': '.pdf',
   'image/jpeg': '.jpg',
+  'image/png': '.png',
 };
 
 @Injectable()
@@ -101,7 +102,7 @@ export class LocalStorageService implements StorageService {
   }
 
   private getPathForKey(key: string): string {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(pdf|jpg)$/.test(key)) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(pdf|jpg|png)$/.test(key)) {
       throw new BadRequestException('Clave de almacenamiento inválida');
     }
     const path = resolve(this.rootPath, key);

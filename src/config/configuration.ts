@@ -11,6 +11,11 @@ export default () => ({
     swagger: {
         enabled: (process.env.SWAGGER_ENABLED ?? 'false').toLowerCase() === 'true',
     },
+    contractStorage: {
+      provider: process.env.CONTRACT_STORAGE_PROVIDER ?? 'local',
+      localPath: process.env.CONTRACT_LOCAL_STORAGE_PATH ?? './storage/contratos',
+      s3: {endpoint:process.env.CONTRACT_S3_ENDPOINT,region:process.env.CONTRACT_S3_REGION,bucket:process.env.CONTRACT_S3_BUCKET,accessKey:process.env.CONTRACT_S3_ACCESS_KEY,secretKey:process.env.CONTRACT_S3_SECRET_KEY},
+    },
     storage: {
         provider: process.env.STORAGE_PROVIDER ?? 'local',
         localPath: process.env.LOCAL_STORAGE_PATH ?? './storage/evidencias',

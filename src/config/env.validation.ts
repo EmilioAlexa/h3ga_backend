@@ -13,6 +13,13 @@ export const envValidationSchema = Join.object({
 
     JWT_EXPIRES_IN: Join.string().default('1h'),
     SWAGGER_ENABLED: Join.string().valid('true', 'false').default('false'),
+    CONTRACT_STORAGE_PROVIDER: Join.string().valid('local','s3').default('local'),
+    CONTRACT_LOCAL_STORAGE_PATH: Join.string().min(1).default('./storage/contratos'),
+    CONTRACT_S3_ENDPOINT: Join.string().uri().pattern(/^https:\/\//).when('CONTRACT_STORAGE_PROVIDER',{is:'s3',then:Join.required(),otherwise:Join.optional()}),
+    CONTRACT_S3_REGION: Join.string().min(1).when('CONTRACT_STORAGE_PROVIDER',{is:'s3',then:Join.required(),otherwise:Join.optional()}),
+    CONTRACT_S3_BUCKET: Join.string().min(1).when('CONTRACT_STORAGE_PROVIDER',{is:'s3',then:Join.required(),otherwise:Join.optional()}),
+    CONTRACT_S3_ACCESS_KEY: Join.string().min(1).when('CONTRACT_STORAGE_PROVIDER',{is:'s3',then:Join.required(),otherwise:Join.optional()}),
+    CONTRACT_S3_SECRET_KEY: Join.string().min(1).when('CONTRACT_STORAGE_PROVIDER',{is:'s3',then:Join.required(),otherwise:Join.optional()}),
     STORAGE_PROVIDER: Join.string().valid('local', 's3').default('local'),
     LOCAL_STORAGE_PATH: Join.string().min(1).default('./storage/evidencias'),
     MAX_FILE_SIZE_MB: Join.number().integer().min(1).max(100).default(10),

@@ -31,14 +31,14 @@ function argumentsForIntegration(args) {
   return options;
 }
 
-function runNode(args) {
+function runNode(args, allowPending = false) {
   const result = spawnSync(process.execPath, args, {
     cwd: projectRoot,
     env: process.env,
     encoding: 'utf8',
     maxBuffer: 1024 * 1024,
   });
-  if (result.status !== 0) throw new Error('Preflight o estado de migraciones de PostgreSQL Test falló');
+  if (result.status !== 0 && !allowPending) throw new Error('Preflight o estado de migraciones de PostgreSQL Test falló');
   return result.stdout;
 }
 
@@ -53,19 +53,21 @@ function verifyDatabase() {
     report.actual.schema !== target.schema ||
     Number(report.actual.port) !== target.port ||
     !['127.0.0.1', '::1'].includes(report.actual.address) ||
-    report.migrations_applied !== 28
+    ![28,29].includes(report.migrations_applied)
   ) {
-    throw new Error('La base efectiva o las 28 migraciones de Test no coinciden');
+    throw new Error('La base efectiva o el historial autorizado de migraciones de Test no coinciden');
   }
   const status = runNode([
     '-r', path.join(projectRoot, 'test', 'test-environment.cjs'),
     path.join(projectRoot, 'node_modules', 'prisma', 'build', 'index.js'),
     'migrate', 'status',
-  ]);
-  if (!status.includes('28 migrations found') || !status.includes('Database schema is up to date!')) {
-    throw new Error('Prisma detectó migraciones pendientes o inesperadas');
-  }
-  console.log('PostgreSQL Test verificado: localhost:5433/h3ga_finanzas_test/public; 28/28 migraciones.');
+  ], report.migrations_applied === 28);
+  const expectedPending='20261121130000_documentos_contractuales';
+  const pendingNames=status.split(/\r?\n/).map(s=>s.trim()).filter(s=>/^\d{14}_/.test(s));
+  const pendingOnly=report.migrations_applied===28 && /not yet been applied/i.test(status) && !/failed|diverg/i.test(status) && pendingNames.length===1 && pendingNames[0]===expectedPending;
+  const installed=report.migrations_applied===29 && status.includes('Database schema is up to date!');
+  if (!status.includes('29 migrations found') || (!pendingOnly && !installed)) throw new Error('Migraciones pendientes o inesperadas: arranque rechazado');
+  console.log(`PostgreSQL Test verificado; ${report.migrations_applied}/29 migraciones. ${pendingOnly ? 'Esquema documental pendiente; creacion contractual original disponible.' : 'Esquema al dia.'}`);
 }
 
 async function assertPortAvailable(httpPort) {

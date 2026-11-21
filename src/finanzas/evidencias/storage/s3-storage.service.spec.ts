@@ -37,7 +37,15 @@ describe('private S3 storage (network mocked)', () => {
     send.mockRejectedValueOnce(denied);
     await expect(storage.exists(key)).rejects.toEqual(denied);
     await expect(storage.get('../private.pdf')).rejects.toThrow('Identificador');
-    await expect(storage.save(Buffer.from('x'), 'image/png')).rejects.toThrow('Tipo de archivo');
+    await expect(storage.save(Buffer.from('x'), 'image/gif')).rejects.toThrow('Tipo de archivo');
+  });
+  it('supports private PNG objects and technical compensation on uncertain uploads',async()=>{
+    send.mockResolvedValue({});
+    expect(await storage.save(Buffer.from('png bytes'),'image/png')).toMatch(/\.png$/);
+    expect(send.mock.calls[0][0].input).toMatchObject({ACL:'private',ContentType:'image/png'});
+    send.mockReset();send.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({});
+    await expect(storage.save(Buffer.from('png bytes'),'image/png')).rejects.toThrow('network');
+    expect(send.mock.calls[1][0].constructor.name).toBe('DeleteObjectCommand');
   });
   it('rejects non-HTTPS endpoints before constructing a client', () => {
     const insecure = { getOrThrow: (name: string) => name.endsWith('endpoint') ? 'http://storage.invalid' : 'private' } as unknown as ConfigService;
