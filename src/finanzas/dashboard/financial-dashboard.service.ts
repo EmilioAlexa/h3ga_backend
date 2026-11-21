@@ -76,7 +76,8 @@ export class FinancialDashboardService {
         () => tx.$queryRaw<Row[]>(Prisma.sql`
           SELECT cd."id" AS concepto_id, cd."nombre" AS concepto, cd."es_remanente" AS es_remanente,
                  ec."nombre" AS estado, SUM(c."monto_comision") AS monto, COUNT(*)::int AS cantidad,
-                 COALESCE(SUM(c."monto_comision") FILTER (WHERE d."id" IS NOT NULL),0) AS dispersado_confirmado
+                 COALESCE(SUM(c."monto_comision") FILTER (WHERE d."id" IS NOT NULL),0) AS dispersado_confirmado,
+                 COALESCE(SUM(c."monto_comision") FILTER (WHERE ec."nombre"='Dispersada' AND d."id" IS NULL),0) AS confirmado_administrativo
           FROM "comisiones" c JOIN "conceptos_dispersion" cd ON cd."id"=c."concepto_id"
           JOIN "estados_comisiones" ec ON ec."id"=c."estado_id"
           JOIN "pagos" p ON p."id"=c."pago_id" JOIN "contratos" ct ON ct."id"=p."contrato_id"
@@ -168,6 +169,8 @@ export class FinancialDashboardService {
       const personalCommissions=commissionRows.filter((r)=>!r.es_remanente && r.concepto!=='IMSS').reduce((n,r)=>n.plus(this.money(r.monto)),zero());
       const pendingCommissions=commissionRows.filter((r)=>!r.es_remanente && r.concepto!=='IMSS' && r.estado==='Pendiente de dispersión').reduce((n,r)=>n.plus(this.money(r.monto)),zero());
       const confirmedAdvisor=commissionRows.filter((r)=>r.concepto==='Asesor').reduce((n,r)=>n.plus(this.money(r.dispersado_confirmado)),zero());
+      const confirmedAdministrative=commissionRows.reduce((n,r)=>n.plus(this.money(r.confirmado_administrativo)),zero());
+      const historicalTransfers=commissionRows.reduce((n,r)=>n.plus(this.money(r.dispersado_confirmado)),zero());
       const balance=balanceRows[0]??{};
       const unavailable=Number(balance.no_disponibles??0);
       const collectionPage=upcomingRows.slice(0,limit);
@@ -185,6 +188,7 @@ export class FinancialDashboardService {
           pagos_rechazados:{stock:Number(payments.get(REJECTED)?.cantidad??0),del_periodo:Number(payments.get(REJECTED)?.del_periodo??0)},
           contratos_activos:contractRows.reduce((n,r)=>n+Number(r.cantidad),0),contratos_finalizan_mes:null,
           por_cobrar_conocido:this.money(balance.saldo_conocido).toFixed(2),por_cobrar_completo:unavailable===0,
+          comisiones_confirmadas_administrativamente:confirmedAdministrative.toFixed(2),transferencias_historicas:historicalTransfers.toFixed(2),
           comisiones_generadas:personalCommissions.toFixed(2),comisiones_pendientes_dispersion:pendingCommissions.toFixed(2),
           comisiones_asesor_dispersadas_confirmadas:confirmedAdvisor.toFixed(2),
         },

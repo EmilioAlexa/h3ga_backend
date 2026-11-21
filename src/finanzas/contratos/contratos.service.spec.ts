@@ -91,6 +91,24 @@ describe('ContratosService advisor policy', () => {
     ).rejects.toThrow('asesor_id no se acepta');
   });
 
+  it.each([
+    ['M10', {monto_mensual:'1200.50',periodo_contrato:'12 meses'}, 'seguimiento_m10'],
+    ['M40', {monto_mensual:'1500.25',salario_diario:'300.00',periodo_contrato:'6 meses',fecha_fin:new Date('2027-05-09')}, 'seguimiento_m40'],
+    ['M40R', {salario_diario:'300.00'}, 'seguimiento_m40_retroactiva'],
+  ])('persists explicit %s conditions inside contract creation without scheduling payments', async (code, conditions, relation) => {
+    tx.servicios.findUnique.mockResolvedValueOnce({id:1,codigo_folio:code});
+    await service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1,...conditions} as any, {id:advisorId,activo:true,roles:{nombre:'asesor'}});
+    const data = tx.contratos.create.mock.calls[0][0].data;
+    expect(data[relation].create).toMatchObject(code === 'M40' ? {cantidad_meses:6,salario_diario:'300.00',monto_mensual:'1500.25'} : conditions);
+    expect(data.pagos_programados).toBeUndefined();
+    expect(data.comisiones).toBeUndefined();
+  });
+
+  it('rejects incompatible APD financial fields before saving the contract', async () => {
+    await expect(service.create({cliente_id:customerId,servicio_id:1,fecha_contrato:new Date('2026-11-09'),estado_contrato_id:1,salario_diario:'300.00'} as any,{id:advisorId,activo:true,roles:{nombre:'asesor'}})).rejects.toThrow('Salario diario no disponible');
+    expect(tx.contratos.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a service without an approved folio code', async () => {
     tx.servicios.findUnique.mockResolvedValueOnce({ id: 1, codigo_folio: null });
     await expect(service.create({

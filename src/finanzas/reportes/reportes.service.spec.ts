@@ -15,7 +15,7 @@ describe('ReportesFinancierosService', () => {
   it('aggregates only validated payments and compares equal-length adjacent periods', async () => {
     const prisma = { $queryRaw: jest.fn().mockResolvedValueOnce([
       { periodo: '2026-01-02', monto: '100.25', cantidad_pagos: 2n },
-    ]).mockResolvedValueOnce([]) };
+    ]).mockResolvedValueOnce([]).mockResolvedValueOnce([{servicio:'APD',monto:'100.25'}]) };
     const service = new ReportesFinancierosService(prisma as never);
 
     const result = await service.ingresos(query, admin);
@@ -29,6 +29,7 @@ describe('ReportesFinancierosService', () => {
       { periodo: '2026-01-02', monto: '100.25', cantidad_pagos: 2 },
     ]);
     expect(result.resumen.total).toBe('100.25');
+    expect(result.por_servicio).toEqual([{servicio:'APD',monto:'100.25',porcentaje:'100.00'}]);
     expect(result.comparacion!.periodo_anterior).toEqual({
       desde: '2025-12-01',
       hasta: '2025-12-31',
@@ -78,7 +79,7 @@ describe('ReportesFinancierosService', () => {
     };
     const service = new ReportesFinancierosService(prisma as never);
     const result = await service.pagosPorMetodo(
-      { ...query, comparar: false, forma_pago_id: 3, tipo_venta_id: 7 },
+      { ...query, comparar: false, forma_pago_id: 3, tipo_venta_id: 7, servicio: "APD", tipo_venta: "Marketing", metodo_pago: "Transferencia" },
       admin,
     );
     const sql = prisma.$queryRaw.mock.calls[0][0] as Prisma.Sql;
@@ -88,6 +89,9 @@ describe('ReportesFinancierosService', () => {
     expect(sql.sql).toContain('sv."tipo_venta_id" =');
     expect(sql.values).toContain(3);
     expect(sql.values).toContain(7);
+    expect(sql.values).toContain('APD');
+    expect(sql.values).toContain('Marketing');
+    expect(sql.values).toContain('Transferencia');
   });
 
   it('denies advisors and rejects invalid date ranges', async () => {
