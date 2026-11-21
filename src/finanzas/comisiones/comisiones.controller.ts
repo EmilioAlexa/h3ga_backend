@@ -11,6 +11,7 @@ import { ConfirmarDispersionDto } from './dto/confirmar-dispersion.dto';
 import { UploadedEvidenceFile } from '../evidencias/evidence-file.validator';
 import { QueryComisionesDto, SaveConfiguracionDispersionDto } from './dto/save-configuracion-dispersion.dto';
 import { ComisionesService } from './comisiones.service';
+import { ConfirmarAdministrativaDto } from './dto/confirmar-administrativa.dto';
 
 type UsuarioAutenticado = { id: string; activo: boolean; roles: { nombre: string } };
 
@@ -21,6 +22,18 @@ type UsuarioAutenticado = { id: string; activo: boolean; roles: { nombre: string
 @Controller('finanzas')
 export class ComisionesController {
   constructor(private readonly service: ComisionesService) {}
+
+  @Get('pagos/:id/distribucion/confirmacion')
+  @Roles('administrador', 'administrador financiero')
+  administrativePreview(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UsuarioAutenticado) {
+    return this.service.administrativeDistribution(id, user);
+  }
+
+  @Post('pagos/:id/distribucion/confirmar')
+  @Roles('administrador', 'administrador financiero')
+  administrativeConfirm(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmarAdministrativaDto, @CurrentUser() user: UsuarioAutenticado) {
+    return this.service.administrativeDistribution(id, user, dto.comision_ids, dto.general);
+  }
 
   @Post('receptores-dispersion')
   @Roles('administrador', 'administrador financiero')

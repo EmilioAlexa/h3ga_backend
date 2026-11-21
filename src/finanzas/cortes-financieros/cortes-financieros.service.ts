@@ -143,7 +143,9 @@ export class CortesFinancierosService {
       }),
       this.prisma.cortes_financieros.count({ where }),
     ]);
-    return { data: data.map((cut) => this.withFolio(cut)), page, limit, total };
+    // Reuse the existing server-side summary, avoiding one HTTP detail request per row.
+    const detailed = await Promise.all(data.map(cut => this.findOne(cut.id, user)));
+    return { data: detailed, page, limit, total };
   }
 
   async findOne(id: string, user: UsuarioAutenticado) {

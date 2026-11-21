@@ -31,6 +31,7 @@ import { ChangeEstadoCorteDto } from './dto/change-estado-corte.dto';
 import { CreateCorteFinancieroDto } from './dto/create-corte-financiero.dto';
 import { QueryCortesFinancierosDto } from './dto/query-cortes-financieros.dto';
 import { CortesFinancierosService } from './cortes-financieros.service';
+import { Throttle } from '@nestjs/throttler';
 
 type UsuarioAutenticado = {
   id: string;
@@ -39,6 +40,7 @@ type UsuarioAutenticado = {
 };
 
 @Controller('finanzas/cortes')
+@Throttle({ default: { limit: 60, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('administrador', 'administrador financiero')
 @ApiTags('Finanzas — Cortes financieros')
