@@ -1,3 +1,7 @@
+import { contractStorageProvider } from './contratos/documentos/contract-storage.provider';
+import { ContractSchemaService } from './contratos/contract-schema.service';
+import { ContractDocumentsService } from './contratos/documentos/contract-documents.service';
+import { ContractDocumentsController } from './contratos/documentos/contract-documents.controller';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RolesGuard } from '../roles/guards/roles.guard';
@@ -42,6 +46,7 @@ import { FinancialDashboardService } from './dashboard/financial-dashboard.servi
     }),
   ],
   controllers: [
+    ContractDocumentsController,
     CatalogosController,
     ContratosController,
     PagosController,
@@ -54,6 +59,9 @@ import { FinancialDashboardService } from './dashboard/financial-dashboard.servi
     FinancialDashboardController,
   ],
   providers: [
+    contractStorageProvider,
+    ContractSchemaService,
+    ContractDocumentsService,
     CatalogosService,
     ContratosService,
     PagosService,

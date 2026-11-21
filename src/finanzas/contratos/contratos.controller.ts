@@ -50,6 +50,12 @@ interface UsuarioAutenticado {
 export class ContratosController {
   constructor(private readonly contratosService: ContratosService) {}
 
+  @Get('opciones')
+  @ApiOperation({summary: 'Catalogos autorizados para alta contractual; tipos de venta persistibles actualmente solo en APD'})
+  options(@CurrentUser() user: UsuarioAutenticado) {
+    return this.contratosService.options(user);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Consultar contratos',

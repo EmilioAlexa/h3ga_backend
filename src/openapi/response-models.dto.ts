@@ -225,6 +225,9 @@ export class ContratoRelacionadoRespuestaDto {
 }
 
 export class ContratoRespuestaDto {
+  @ApiPropertyOptional({type:'object',additionalProperties:{type:'boolean'},description:'Capacidades verificadas del esquema al consultar detalle.'})
+  capacidades?: Record<string,boolean>;
+
   @ApiProperty({ format: 'uuid' })
   id: string;
 

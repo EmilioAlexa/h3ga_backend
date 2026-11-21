@@ -1,9 +1,11 @@
+import { ContractSchemaService } from './contract-schema.service';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -20,8 +22,21 @@ type UsuarioAutenticado = {
 const ROLES_ADMINISTRATIVOS = ['administrador', 'administrador financiero'];
 
 const contratoSelect = {
+  seguimiento_apd: {
+    select: {
+      tipo_venta_id: true,
+      tipos_venta: { select: { id: true, nombre: true } },
+    },
+  },
   seguimiento_m10: { select: { monto_mensual: true, periodo_contrato: true } },
-  seguimiento_m40: { select: { salario_diario: true, cantidad_meses: true, fecha_fin: true, monto_mensual: true } },
+  seguimiento_m40: {
+    select: {
+      salario_diario: true,
+      cantidad_meses: true,
+      fecha_fin: true,
+      monto_mensual: true,
+    },
+  },
   seguimiento_m40_retroactiva: { select: { salario_diario: true } },
   id: true,
   cliente_id: true,
@@ -55,7 +70,51 @@ const contratoSelect = {
 
 @Injectable()
 export class ContratosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly schema?: ContractSchemaService,
+  ) {}
+
+  async options(usuario: UsuarioAutenticado) {
+    this.ensureCanRead(usuario);
+    if (!usuario.activo) throw new ForbiddenException('Cuenta inactiva');
+    const [servicios, estados, tipos_venta] = await Promise.all([
+      this.prisma.servicios.findMany({
+        where: { activo: true },
+        select: {
+          id: true,
+          nombre: true,
+          descripcion: true,
+          codigo_folio: true,
+        },
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.estados_contratos.findMany({
+        select: { id: true, nombre: true, descripcion: true, orden: true },
+        orderBy: { orden: 'asc' },
+      }),
+      this.prisma.tipos_venta.findMany({
+        where: {
+          activo: true,
+          OR: [
+            { nombre: { equals: 'Cambaceo', mode: 'insensitive' } },
+            { nombre: { equals: 'Marketing', mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true, nombre: true },
+        orderBy: { nombre: 'asc' },
+      }),
+    ]);
+    return {
+      capacidades: this.schema
+        ? await this.schema.capabilities()
+        : { documentos: false },
+      servicios,
+      estados,
+      tipos_venta,
+      tipo_venta_modalidades: ['APD'],
+    };
+  }
 
   async findAll(query: QueryContratosDto, usuario: UsuarioAutenticado) {
     this.ensureCanRead(usuario);
@@ -123,7 +182,12 @@ export class ContratosService {
     });
 
     if (!contrato) throw new NotFoundException('Contrato no encontrado');
-    return contrato;
+    return {
+      ...contrato,
+      capacidades: this.schema
+        ? await this.schema.capabilities()
+        : { documentos: false },
+    };
   }
 
   async create(dto: CreateContratoDto, usuario: UsuarioAutenticado) {
@@ -149,105 +213,145 @@ export class ContratosService {
     const asesorId = esAsesor ? usuario.id : dto.asesor_id!;
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        // La pausa y el alta bloquean la misma fila hasta terminar su transacción.
-        const clientes = await tx.$queryRaw<
-          Array<{ id: string; pausado: boolean }>
-        >(
-          Prisma.sql`SELECT "id", "pausado" FROM "clientes" WHERE "id" = ${dto.cliente_id}::uuid FOR UPDATE`,
-        );
-        const cliente = clientes[0];
-        const servicio = await tx.servicios.findUnique({
-          where: { id: dto.servicio_id, activo: true },
-          select: { id: true, codigo_folio: true },
-        });
-        const estado = await tx.estados_contratos.findUnique({
-          where: { id: dto.estado_contrato_id },
-          select: { id: true },
-        });
-
-        if (!cliente)
-          throw new BadRequestException('El cliente indicado no existe');
-        if (cliente.pausado) {
-          throw new ConflictException('El cliente está pausado');
-        }
-        if (!servicio) {
-          throw new BadRequestException(
-            'El servicio indicado no existe o está inactivo',
+      return await this.prisma.$transaction(
+        async (tx) => {
+          // La pausa y el alta bloquean la misma fila hasta terminar su transacción.
+          const clientes = await tx.$queryRaw<
+            Array<{ id: string; pausado: boolean }>
+          >(
+            Prisma.sql`SELECT "id", "pausado" FROM "clientes" WHERE "id" = ${dto.cliente_id}::uuid FOR UPDATE`,
           );
-        }
-        if (!servicio.codigo_folio || !['APD', 'M10', 'M40', 'M40R'].includes(servicio.codigo_folio)) {
-          throw new ConflictException('El servicio no tiene un codigo de folio aprobado');
-        }
-        if (!estado) {
-          throw new BadRequestException(
-            'El estado contractual indicado no existe',
-          );
-        }
-
-        // El JWT procede de JwtStrategy, que ya consulta rol y cuenta activa.
-        // Para administradores, el asesor indicado se valida aquí contra Prisma.
-        if (!esAsesor) {
-          const asesor = await tx.usuarios.findUnique({
-            where: { id: asesorId },
-            select: {
-              id: true,
-              activo: true,
-              roles: { select: { nombre: true } },
-            },
+          const cliente = clientes[0];
+          const servicio = await tx.servicios.findUnique({
+            where: { id: dto.servicio_id, activo: true },
+            select: { id: true, codigo_folio: true },
           });
-          if (!asesor || !asesor.activo || asesor.roles.nombre !== 'asesor') {
+          const estado = await tx.estados_contratos.findUnique({
+            where: { id: dto.estado_contrato_id },
+            select: { id: true },
+          });
+
+          if (!cliente)
+            throw new BadRequestException('El cliente indicado no existe');
+          if (cliente.pausado) {
+            throw new ConflictException('El cliente está pausado');
+          }
+          if (!servicio) {
             throw new BadRequestException(
-              'El usuario indicado no existe, está inactivo o no tiene el rol de asesor',
+              'El servicio indicado no existe o está inactivo',
             );
           }
-        }
+          if (
+            !servicio.codigo_folio ||
+            !['APD', 'M10', 'M40', 'M40R'].includes(servicio.codigo_folio)
+          ) {
+            throw new ConflictException(
+              'El servicio no tiene un codigo de folio aprobado',
+            );
+          }
+          if (!estado) {
+            throw new BadRequestException(
+              'El estado contractual indicado no existe',
+            );
+          }
 
-        const [momento] = await tx.$queryRaw<Array<{ instante: Date; anio: number }>>(
-          Prisma.sql`SELECT instante, EXTRACT(YEAR FROM instante AT TIME ZONE 'America/Cancun')::int AS anio
+          // El JWT procede de JwtStrategy, que ya consulta rol y cuenta activa.
+          // Para administradores, el asesor indicado se valida aquí contra Prisma.
+          if (!esAsesor) {
+            const asesor = await tx.usuarios.findUnique({
+              where: { id: asesorId },
+              select: {
+                id: true,
+                activo: true,
+                roles: { select: { nombre: true } },
+              },
+            });
+            if (!asesor || !asesor.activo || asesor.roles.nombre !== 'asesor') {
+              throw new BadRequestException(
+                'El usuario indicado no existe, está inactivo o no tiene el rol de asesor',
+              );
+            }
+          }
+
+          const [momento] = await tx.$queryRaw<
+            Array<{ instante: Date; anio: number }>
+          >(
+            Prisma.sql`SELECT instante, EXTRACT(YEAR FROM instante AT TIME ZONE 'America/Cancun')::int AS anio
                      FROM (SELECT clock_timestamp() AS instante) AS reloj`,
-        );
-        const [reserva] = await tx.$queryRaw<Array<{ ultimo: bigint }>>(
-          Prisma.sql`INSERT INTO "folios_contrato_contadores" ("servicio_id", "anio", "ultimo")
+          );
+          const [reserva] = await tx.$queryRaw<Array<{ ultimo: bigint }>>(
+            Prisma.sql`INSERT INTO "folios_contrato_contadores" ("servicio_id", "anio", "ultimo")
                      VALUES (${servicio.id}, ${momento.anio}, 1)
                      ON CONFLICT ("servicio_id", "anio")
                      DO UPDATE SET "ultimo" = "folios_contrato_contadores"."ultimo" + 1
                      RETURNING "ultimo"`,
-        );
-        if (reserva.ultimo === 1n) {
-          const historicos = await tx.$queryRaw<Array<{ existe: number }>>(
-            Prisma.sql`SELECT 1 AS existe FROM "contratos"
+          );
+          if (reserva.ultimo === 1n) {
+            const historicos = await tx.$queryRaw<Array<{ existe: number }>>(
+              Prisma.sql`SELECT 1 AS existe FROM "contratos"
                        WHERE "servicio_id" = ${servicio.id}
                          AND EXTRACT(YEAR FROM "creado_en" AT TIME ZONE 'America/Cancun')::int = ${momento.anio}
                        LIMIT 1`,
-          );
-          if (historicos.length) {
-            throw new ConflictException('El contador del servicio y anio requiere inicializacion historica');
+            );
+            if (historicos.length) {
+              throw new ConflictException(
+                'El contador del servicio y anio requiere inicializacion historica',
+              );
+            }
           }
-        }
-        const prefijo = servicio.codigo_folio === 'APD' ? '' : servicio.codigo_folio;
-        const folio = `${prefijo}${momento.anio}${reserva.ultimo.toString().padStart(5, '0')}`;
-        if (folio.length > 50) {
-          throw new ConflictException('El consecutivo supera la longitud del folio contractual');
-        }
+          const prefijo =
+            servicio.codigo_folio === 'APD' ? '' : servicio.codigo_folio;
+          const folio = `${prefijo}${momento.anio}${reserva.ultimo.toString().padStart(5, '0')}`;
+          if (folio.length > 50) {
+            throw new ConflictException(
+              'El consecutivo supera la longitud del folio contractual',
+            );
+          }
 
-        const conditions = this.contractConditions(dto, servicio.codigo_folio);
-        return tx.contratos.create({
-          data: {
-            cliente_id: dto.cliente_id,
-            servicio_id: dto.servicio_id,
-            asesor_id: asesorId,
-            folio,
-            fecha_contrato: dto.fecha_contrato,
-            estado_contrato_id: dto.estado_contrato_id,
-            cantidad_pagos: dto.cantidad_pagos,
-            observaciones: dto.observaciones,
-            creado_en: momento.instante,
-            ...conditions,
-          },
-          select: contratoSelect,
-        });
-      }, { maxWait: 10_000, timeout: 20_000 });
+          let sales = {};
+          if (dto.tipo_venta_id !== undefined) {
+            if (dto.tipo_venta_id === null)
+              throw new BadRequestException('Tipo de venta no valido');
+            if (servicio.codigo_folio !== 'APD')
+              throw new BadRequestException(
+                'El esquema actual solo almacena tipo de venta en APD',
+              );
+            const saleType = await tx.tipos_venta.findUnique({
+              where: { id: dto.tipo_venta_id },
+              select: { id: true, nombre: true, activo: true },
+            });
+            if (
+              !saleType?.activo ||
+              !['cambaceo', 'marketing'].includes(saleType.nombre.toLowerCase())
+            )
+              throw new BadRequestException('Tipo de venta no disponible');
+            sales = {
+              seguimiento_apd: { create: { tipo_venta_id: saleType.id } },
+            };
+          }
+          const conditions = this.contractConditions(
+            dto,
+            servicio.codigo_folio,
+          );
+          return tx.contratos.create({
+            data: {
+              cliente_id: dto.cliente_id,
+              servicio_id: dto.servicio_id,
+              asesor_id: asesorId,
+              folio,
+              fecha_contrato: dto.fecha_contrato,
+              estado_contrato_id: dto.estado_contrato_id,
+              cantidad_pagos: dto.cantidad_pagos,
+              observaciones: dto.observaciones,
+              creado_en: momento.instante,
+              ...conditions,
+              ...sales,
+            },
+            select: contratoSelect,
+          });
+        },
+        { maxWait: 10_000, timeout: 20_000 },
+      );
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -283,25 +387,101 @@ export class ContratosService {
   }
 
   private contractConditions(dto: CreateContratoDto, modality: string) {
-    for (const key of ['salario_diario','monto_mensual','periodo_contrato','fecha_fin'] as const) {
-      if (dto[key] === null) throw new BadRequestException('Las condiciones opcionales deben omitirse cuando no existen');
+    for (const key of [
+      'salario_diario',
+      'monto_mensual',
+      'periodo_contrato',
+      'fecha_fin',
+    ] as const) {
+      if (dto[key] === null)
+        throw new BadRequestException(
+          'Las condiciones opcionales deben omitirse cuando no existen',
+        );
     }
     for (const value of [dto.salario_diario, dto.monto_mensual]) {
-      if (value !== undefined && new Prisma.Decimal(value).isNegative()) throw new BadRequestException('Los importes deben ser positivos o cero');
+      if (value !== undefined && new Prisma.Decimal(value).isNegative())
+        throw new BadRequestException(
+          'Los importes deben ser positivos o cero',
+        );
     }
-    if (dto.salario_diario !== undefined && !['M40', 'M40R'].includes(modality)) throw new BadRequestException('Salario diario no disponible para esta modalidad');
-    if (dto.monto_mensual !== undefined && !['M10', 'M40'].includes(modality)) throw new BadRequestException('Monto mensual no disponible para esta modalidad');
-    if (dto.periodo_contrato !== undefined && !['M10', 'M40'].includes(modality)) throw new BadRequestException('Periodo contractual no disponible para esta modalidad');
-    if (dto.fecha_fin && (modality !== 'M40' || dto.fecha_fin < dto.fecha_contrato)) throw new BadRequestException('Fecha de t?rmino incompatible');
-    if (dto.salario_diario !== undefined && new Prisma.Decimal(dto.salario_diario).greaterThan('99999999.99')) throw new BadRequestException('Salario fuera de rango');
-    if (dto.monto_mensual !== undefined && new Prisma.Decimal(dto.monto_mensual).greaterThan('9999999999.99')) throw new BadRequestException('Monto mensual fuera de rango');
-    if (modality === 'M10' && (dto.monto_mensual !== undefined || dto.periodo_contrato !== undefined)) return { seguimiento_m10: {create: {monto_mensual: dto.monto_mensual, periodo_contrato: dto.periodo_contrato}} };
-    if (modality === 'M40' && [dto.salario_diario,dto.monto_mensual,dto.periodo_contrato,dto.fecha_fin].some(v => v !== undefined)) {
-      const months: Record<string, number | null> = {'6 meses':6, '12 meses':12, '24 meses':24, 'Indefinido':null};
-      if (dto.periodo_contrato && !(dto.periodo_contrato in months)) throw new BadRequestException('Periodo M40 incompatible');
-      return {seguimiento_m40: {create: {salario_diario:dto.salario_diario, monto_mensual:dto.monto_mensual, cantidad_meses:dto.periodo_contrato ? months[dto.periodo_contrato] : undefined, fecha_fin:dto.fecha_fin}}};
+    if (dto.salario_diario !== undefined && !['M40', 'M40R'].includes(modality))
+      throw new BadRequestException(
+        'Salario diario no disponible para esta modalidad',
+      );
+    if (dto.monto_mensual !== undefined && !['M10', 'M40'].includes(modality))
+      throw new BadRequestException(
+        'Monto mensual no disponible para esta modalidad',
+      );
+    if (
+      dto.periodo_contrato !== undefined &&
+      !['M10', 'M40'].includes(modality)
+    )
+      throw new BadRequestException(
+        'Periodo contractual no disponible para esta modalidad',
+      );
+    if (
+      dto.fecha_fin &&
+      (modality !== 'M40' || dto.fecha_fin < dto.fecha_contrato)
+    )
+      throw new BadRequestException('Fecha de t?rmino incompatible');
+    if (
+      dto.salario_diario !== undefined &&
+      new Prisma.Decimal(dto.salario_diario).greaterThan('99999999.99')
+    )
+      throw new BadRequestException('Salario fuera de rango');
+    if (
+      dto.monto_mensual !== undefined &&
+      new Prisma.Decimal(dto.monto_mensual).greaterThan('9999999999.99')
+    )
+      throw new BadRequestException('Monto mensual fuera de rango');
+    if (
+      modality === 'M10' &&
+      (dto.monto_mensual !== undefined || dto.periodo_contrato !== undefined)
+    )
+      return {
+        seguimiento_m10: {
+          create: {
+            monto_mensual: dto.monto_mensual,
+            periodo_contrato: dto.periodo_contrato,
+          },
+        },
+      };
+    if (
+      modality === 'M40' &&
+      [
+        dto.salario_diario,
+        dto.monto_mensual,
+        dto.periodo_contrato,
+        dto.fecha_fin,
+      ].some((v) => v !== undefined)
+    ) {
+      const months: Record<string, number | null> = {
+        '6 meses': 6,
+        '12 meses': 12,
+        '24 meses': 24,
+        Indefinido: null,
+      };
+      if (dto.periodo_contrato && !(dto.periodo_contrato in months))
+        throw new BadRequestException('Periodo M40 incompatible');
+      return {
+        seguimiento_m40: {
+          create: {
+            salario_diario: dto.salario_diario,
+            monto_mensual: dto.monto_mensual,
+            cantidad_meses: dto.periodo_contrato
+              ? months[dto.periodo_contrato]
+              : undefined,
+            fecha_fin: dto.fecha_fin,
+          },
+        },
+      };
     }
-    if (modality === 'M40R' && dto.salario_diario !== undefined) return {seguimiento_m40_retroactiva: {create: {salario_diario:dto.salario_diario}}};
+    if (modality === 'M40R' && dto.salario_diario !== undefined)
+      return {
+        seguimiento_m40_retroactiva: {
+          create: { salario_diario: dto.salario_diario },
+        },
+      };
     return {};
   }
 
@@ -362,7 +542,12 @@ export class ContratosService {
         );
       }
     }
-    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505'
+    ) {
       throw new ConflictException('El folio contractual ya existe');
     }
     throw error;
