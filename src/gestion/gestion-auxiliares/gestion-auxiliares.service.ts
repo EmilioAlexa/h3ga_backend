@@ -47,7 +47,7 @@ export class GestionAuxiliaresService {
     }
     if (user.roles.nombre === 'auxiliar administrativo') {
       return this.prisma.cliente_auxiliares.findMany({
-        where: { auxiliar_id: user.id, activo: query.activo, ...(query.cliente_id ? { cliente_id: query.cliente_id } : {}) },
+        where: { auxiliar_id: user.id, activo: true, ...(query.cliente_id ? { cliente_id: query.cliente_id } : {}) },
         include: { clientes: { select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true, asesor_id: true } }, usuario_auxiliar: { select: { id: true, nombre: true, apellido_paterno: true, correo_electronico: true } } },
       });
     }

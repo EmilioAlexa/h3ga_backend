@@ -106,10 +106,10 @@ export class DashboardService {
       rol === 'asesor' ? query<AvanceRow>(Prisma.sql`, tope AS (
         SELECT id, nombre, count(*) OVER ()::int AS total FROM info WHERE activo ORDER BY nombre, id LIMIT 200)
         SELECT t.id AS cliente_id, t.nombre AS cliente_nombre, t.total,
-        (SELECT json_agg(json_build_object('numero_paso', ep.numero_paso,
+        COALESCE((SELECT json_agg(json_build_object('numero_paso', ep.numero_paso,
             'avance_porcentaje', COALESCE(e.avance_porcentaje, 0), 'estatus_id', e.estatus_id) ORDER BY ep.numero_paso)
          FROM etapas_proceso ep LEFT JOIN etapas e ON e.cliente_id = t.id AND e.numero_paso = ep.numero_paso
-         WHERE ep.numero_paso BETWEEN 0 AND 15) AS etapas FROM tope t ORDER BY t.nombre, t.id`) : Promise.resolve(null),
+         WHERE ep.numero_paso BETWEEN 0 AND 15), '[]'::json) AS etapas FROM tope t ORDER BY t.nombre, t.id`) : Promise.resolve(null),
     ]);
     const r = resumen[0];
     return { fecha: hoy,
