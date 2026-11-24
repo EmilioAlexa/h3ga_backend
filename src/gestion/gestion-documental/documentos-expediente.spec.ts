@@ -51,11 +51,21 @@ describe('Documentos de expediente — RF-27/28', () => {
     expect(db.documentos_clientes.delete).not.toHaveBeenCalled(); expect(storage.remove).not.toHaveBeenCalled();
   });
   it('conserva el archivo si falla el commit o su resultado es indeterminado', async () => {
-    const { service, db, storage } = fixture();
-    db.$transaction.mockImplementation(async (fn) => { await fn(db); throw new Error('commit desconocido'); });
-    await expect(service.eliminarDocumento('doc', user)).rejects.toBeInstanceOf(ServiceUnavailableException);
-    expect(storage.remove).not.toHaveBeenCalled();
-  });
+  const { service, db, storage } = fixture();
+
+  db.$transaction.mockImplementation(
+    async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+      await fn(db);
+      throw new Error('commit desconocido');
+    },
+  );
+
+  await expect(
+    service.eliminarDocumento('doc', user),
+  ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+  expect(storage.remove).not.toHaveBeenCalled();
+});
   it('traduce una referencia concurrente de clave foránea a conflicto', async () => {
     const { service, db, storage } = fixture();
     db.documentos_clientes.delete.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('FK', { code: 'P2003', clientVersion: 'test' }));
