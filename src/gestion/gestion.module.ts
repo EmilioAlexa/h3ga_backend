@@ -7,12 +7,14 @@ import { FormatosInstitucionalesController } from './formatos-institucionales/fo
 import { GestionAuxiliaresModule } from './gestion-auxiliares/gestion-auxiliares.module';
 import { GestionDocumentalModule } from './gestion-documental/gestion-documental.module';
 import { ProcesoFinalModule } from './proceso-final/proceso-final.module';
+import { ModalidadesModule } from './modalidades/modalidades.module';
 
 @Module({
   imports: [
     GestionAuxiliaresModule,
     GestionDocumentalModule,
     ProcesoFinalModule,
+    ModalidadesModule,
   ],
   providers: [
     FormatosInstitucionalesService,

@@ -3,5 +3,5 @@ import { DocumentStorageService } from './document-storage.service';
 import { GestionDocumentalController } from './gestion-documental.controller';
 import { GestionDocumentalService } from './gestion-documental.service';
 
-@Module({ controllers: [GestionDocumentalController], providers: [GestionDocumentalService, DocumentStorageService] })
+@Module({ controllers: [GestionDocumentalController], providers: [GestionDocumentalService, DocumentStorageService], exports: [GestionDocumentalService] })
 export class GestionDocumentalModule {}
