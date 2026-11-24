@@ -41,7 +41,7 @@ describe('I3 con PostgreSQL local aislado', () => {
     if (
       url.hostname !== 'localhost' ||
       url.port !== '5433' ||
-      url.pathname !== '/h3ga_finanzas_test' ||
+      url.pathname !== `/${process.env.H3GA_TEST_DATABASE_NAME}` ||
       url.searchParams.get('schema') !== 'public'
     ) {
       throw new Error('DATABASE_URL fuera de h3ga_finanzas_test');
@@ -57,7 +57,7 @@ describe('I3 con PostgreSQL local aislado', () => {
     await pool.end();
     for (const identity of [fromNest, fromPg]) {
       expect(identity).toMatchObject({
-        database: 'h3ga_finanzas_test',
+        database: process.env.H3GA_TEST_DATABASE_NAME,
         schema: 'public',
         port: 5433,
       });

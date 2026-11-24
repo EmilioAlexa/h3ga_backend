@@ -71,7 +71,7 @@ describe('Integridad de clientes en PostgreSQL Test', () => {
     const fromPg = (await pool.query(identitySql)).rows[0];
     await pool.end();
     expect(fromPrisma).toEqual(fromPg);
-    expect(fromPg).toMatchObject({ database: 'h3ga_finanzas_test', schema: 'public', port: 5433 });
+    expect(fromPg).toMatchObject({ database: process.env.H3GA_TEST_DATABASE_NAME, schema: 'public', port: 5433 });
     expect(['::1', '127.0.0.1']).toContain(fromPg.address);
     const migrations = await prisma.$queryRaw<Array<{ applied: number }>>`
       SELECT COUNT(*)::int AS applied FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;

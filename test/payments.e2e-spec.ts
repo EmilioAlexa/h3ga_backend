@@ -62,7 +62,7 @@ describe('Pagos con PostgreSQL aislado', () => {
   async function assertTestDatabase() {
     if (process.env.H3GA_I3_TEST_DATABASE_VERIFIED !== '1') throw new Error('Falta la guarda PostgreSQL Test');
     const url = new URL(process.env.DATABASE_URL!);
-    if (url.hostname !== 'localhost' || url.port !== '5433' || url.pathname !== '/h3ga_finanzas_test' || url.searchParams.get('schema') !== 'public') {
+    if (url.hostname !== 'localhost' || url.port !== '5433' || url.pathname !== `/${process.env.H3GA_TEST_DATABASE_NAME}` || url.searchParams.get('schema') !== 'public') {
       throw new Error('DATABASE_URL fuera de PostgreSQL Test');
     }
     const sql = 'SELECT current_database() AS database, current_schema() AS schema, inet_server_port() AS port, host(inet_server_addr()) AS address';
@@ -71,7 +71,7 @@ describe('Pagos con PostgreSQL aislado', () => {
     const fromPg = (await pool.query(sql)).rows[0];
     await pool.end();
     for (const actual of [fromPrisma, fromPg]) {
-      expect(actual).toMatchObject({ database: 'h3ga_finanzas_test', schema: 'public', port: 5433 });
+      expect(actual).toMatchObject({ database: process.env.H3GA_TEST_DATABASE_NAME, schema: 'public', port: 5433 });
       expect(['::1', '127.0.0.1']).toContain(actual.address);
     }
     expect(fromPrisma).toEqual(fromPg);
@@ -822,9 +822,9 @@ describe('Pagos con PostgreSQL aislado', () => {
       .attach('file', contents, { filename: 'comprobante.pdf', contentType: 'application/pdf' });
     await request(server()).put(`/api/finanzas/comisiones/${companyCommission.id}/dispersar`)
       .set('Authorization', `Bearer ${adminToken}`).send({ comentario: 'No representa salida' }).expect(400);
-    const filesBeforeRejectedDispersion = (await readdir('storage/postgres-tests')).length;
+    const filesBeforeRejectedDispersion = (await readdir(process.env.LOCAL_STORAGE_PATH!)).length;
     await confirm(companyCommission.id, randomUUID(), 'REF-EMPRESA-TEST', adminToken).expect(409);
-    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeRejectedDispersion);
+    expect((await readdir(process.env.LOCAL_STORAGE_PATH!)).length).toBe(filesBeforeRejectedDispersion);
     expect(await prisma.dispersiones_comision.count({ where: { comision_id: companyCommission.id } })).toBe(0);
     await confirm(first.find(row => row.conceptos_dispersion.nombre === 'Asesor')!.id, randomUUID(), 'REF-SIN-PERMISO', advisorToken).expect(403);
     await request(server()).put(`/api/finanzas/contratos/${contractId}/comisiones`)
@@ -864,7 +864,7 @@ describe('Pagos con PostgreSQL aislado', () => {
     const financialToken = await tokenFor(financialId);
     const operationKey = randomUUID();
     await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken, Buffer.from('archivo inválido')).expect(400);
-    const filesBeforeConfirmation = (await readdir('storage/postgres-tests')).length;
+    const filesBeforeConfirmation = (await readdir(process.env.LOCAL_STORAGE_PATH!)).length;
     const confirmations = await Promise.all([adminToken, financialToken].map(token =>
       confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', token)));
     expect(confirmations.map(result => result.status).sort((a, b) => a - b)).toEqual([200, 200]);
@@ -874,12 +874,12 @@ describe('Pagos con PostgreSQL aislado', () => {
     const dispersed = await prisma.estados_comisiones.findUniqueOrThrow({ where: { nombre: 'Dispersada' } });
     expect(await prisma.historial_estados_comisiones.count({ where: { comision_id: second.id, estado_nuevo_id: dispersed.id } })).toBe(1);
     expect(await prisma.dispersiones_comision.count({ where: { comision_id: second.id } })).toBe(1);
-    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeConfirmation + 1);
+    expect((await readdir(process.env.LOCAL_STORAGE_PATH!)).length).toBe(filesBeforeConfirmation + 1);
     expect((await prisma.comisiones.findUniqueOrThrow({ where: { id: second.id }, select: legacyCommissionSelect })).estados_comisiones.nombre).toBe('Dispersada');
-    const filesBeforeRetry = (await readdir('storage/postgres-tests')).length;
+    const filesBeforeRetry = (await readdir(process.env.LOCAL_STORAGE_PATH!)).length;
     const retry = await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken).expect(200);
     expect(retry.body).toEqual(confirmations[0].body);
-    expect((await readdir('storage/postgres-tests')).length).toBe(filesBeforeRetry);
+    expect((await readdir(process.env.LOCAL_STORAGE_PATH!)).length).toBe(filesBeforeRetry);
     await confirm(second.id, operationKey, 'REF-DIFERENTE', adminToken).expect(409);
     await confirm(second.id, operationKey, 'REF-TEST-SEGUNDA', adminToken,
       Buffer.from('%PDF-1.4\ncontenido-distinto\n%%EOF')).expect(409);

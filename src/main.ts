@@ -81,12 +81,24 @@ async function bootstrap() {
     }
   }
 
+  if (!localIntegration && process.env.NODE_ENV === 'production') {
+    const frontendOrigin = process.env.FRONTEND_ORIGIN;
+    if (frontendOrigin) {
+      app.enableCors({
+        origin: [frontendOrigin],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Accept', 'Authorization', 'Content-Type'],
+        credentials: false,
+      });
+    }
+  }
+
   const configService = app.get(ConfigService);
   if (configService.get<boolean>('swagger.enabled', false)) {
     setupSwagger(app);
   }
 
-  if (localIntegration) {
+  if (localIntegration || process.env.NODE_ENV === 'production') {
     await app.listen(port, '127.0.0.1');
   } else {
     await app.listen(port);

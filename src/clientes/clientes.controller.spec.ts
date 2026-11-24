@@ -383,7 +383,7 @@ describe('ClientesController (JWT, roles and client scope)', () => {
     });
   });
 
-  it('creates a client only for an active advisor and assigns the JWT user', async () => {
+  it('creates a client for an active advisor and assigns the JWT user', async () => {
     const token = await tokenFor(advisorAId);
     const response = await request(app.getHttpServer())
       .post('/api/clientes')
@@ -453,21 +453,22 @@ describe('ClientesController (JWT, roles and client scope)', () => {
       .set('Authorization', `Bearer ${token}`).send({ fecha_ingreso: '2026-01-01' }).expect(400);
   });
 
-  it('blocks non-advisors from creating clients', async () => {
-    const adminToken = await tokenFor(adminId);
-    await request(app.getHttpServer())
+  it.each([adminId, financialAdminId])('allows administration to create without assigning the administrator as advisor: %s', async (actorId) => {
+    const token = await tokenFor(actorId);
+    const result = await request(app.getHttpServer())
       .post('/api/clientes')
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ nombre: 'Ana', apellido_paterno: 'Prueba' })
-      .expect(403);
+      .expect(201);
+    expect(result.body.nombre).toBe('Ana');
+    expect(prisma.clientes.create.mock.calls[0][0].data.asesor_id).toBeNull();
+  });
 
-    const financeToken = await tokenFor(financialAdminId);
-    await request(app.getHttpServer())
-      .post('/api/clientes')
-      .set('Authorization', `Bearer ${financeToken}`)
-      .send({ nombre: 'Ana', apellido_paterno: 'Prueba' })
-      .expect(403);
-
+  it('continues blocking auxiliary users from creating clients', async () => {
+    const token = await tokenFor(auxiliaryId);
+    await request(app.getHttpServer()).post('/api/clientes')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nombre: 'Ana', apellido_paterno: 'Prueba' }).expect(403);
     expect(prisma.clientes.create).not.toHaveBeenCalled();
   });
 

@@ -77,7 +77,16 @@ export class ClientesService {
     const [data, total] = await Promise.all([
       this.prisma.clientes.findMany({
         where,
-        select: clienteListadoSelect,
+        select: {
+          ...clienteListadoSelect,
+          usuarios: {
+            select: { nombre: true, apellido_paterno: true, apellido_materno: true },
+          },
+          contratos: {
+            select: { servicios: { select: { nombre: true } } },
+            orderBy: [{ servicio_id: 'asc' }, { id: 'asc' }],
+          },
+        },
         skip,
         take: query.limit,
         orderBy: [
@@ -127,7 +136,7 @@ export class ClientesService {
     createClienteDto: CreateClienteDto,
     currentUser: AuthenticatedUser,
   ) {
-    await this.ensureActiveAdvisor(currentUser);
+    await this.ensureActiveClientCreator(currentUser);
 
     try {
       const data = {
@@ -143,7 +152,7 @@ export class ClientesService {
           domicilio: createClienteDto.domicilio,
           referido_por: createClienteDto.referido_por,
           observaciones_generales: createClienteDto.observaciones_generales,
-          asesor_id: currentUser.id,
+          asesor_id: currentUser.roles.nombre === 'asesor' ? currentUser.id : null,
       };
       if (!createClienteDto.referido_por_cliente_id) {
         return await this.prisma.clientes.create({ data, select: clienteDetalleAdministrativoSelect });
@@ -409,11 +418,12 @@ export class ClientesService {
     }
   }
 
-  private async ensureActiveAdvisor(
+  private async ensureActiveClientCreator(
     currentUser: AuthenticatedUser,
   ): Promise<void> {
-    if (currentUser.roles.nombre !== 'asesor') {
-      throw new ForbiddenException('Solo un asesor puede registrar clientes');
+    const allowedRoles = ['asesor', 'administrador', 'administrador financiero'];
+    if (!allowedRoles.includes(currentUser.roles.nombre)) {
+      throw new ForbiddenException('No tienes permiso para registrar clientes');
     }
 
     const user = await this.prisma.usuarios.findUnique({
@@ -428,8 +438,8 @@ export class ClientesService {
       throw new UnauthorizedException('La sesión del usuario no es válida');
     }
 
-    if (user.roles.nombre !== 'asesor') {
-      throw new ForbiddenException('Solo un asesor puede registrar clientes');
+    if (!allowedRoles.includes(user.roles.nombre) || user.roles.nombre !== currentUser.roles.nombre) {
+      throw new ForbiddenException('No tienes permiso para registrar clientes');
     }
   }
 

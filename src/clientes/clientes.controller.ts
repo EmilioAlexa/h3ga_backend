@@ -38,8 +38,8 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClientesService } from './clientes.service';
 import {
   ClienteDetalleRespuestaDto,
-  ClientesPaginadosRespuestaDto,
 } from '../openapi/response-models.dto';
+import { ClientesDirectorioPaginadoRespuestaDto } from './dto/clientes-directorio-respuesta.dto';
 
 interface AuthenticatedUser {
   id: string;
@@ -81,7 +81,7 @@ export class ClientesController {
   @ApiOkResponse({
     description:
       'Página de clientes; la lista omite CURP, RFC y datos internos.',
-    type: ClientesPaginadosRespuestaDto,
+    type: ClientesDirectorioPaginadoRespuestaDto,
   })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
   @ApiForbiddenResponse({ description: 'El rol no tiene acceso a clientes.' })
@@ -123,19 +123,19 @@ export class ClientesController {
   }
 
   @Post()
-  @Roles('asesor')
+  @Roles('asesor', 'administrador', 'administrador financiero')
   @ApiOperation({
     summary: 'Registrar un cliente',
     description:
-      'Solo el asesor autenticado puede registrar clientes; asesor_id se toma del JWT. El UUID opcional del referidor debe ser de un cliente asignado al mismo asesor y se audita.',
+      'Asesor, administrador y administrador financiero pueden registrar clientes. Para el asesor, asesor_id se toma del JWT; administración registra sin asesor asignado. El UUID opcional del referidor debe pertenecer a un cliente asignado al actor y se audita.',
   })
   @ApiCreatedResponse({
-    description: 'Cliente registrado y asignado al asesor autenticado.',
+    description: 'Cliente registrado; se asigna al actor únicamente si es asesor.',
     type: ClienteDetalleRespuestaDto,
   })
   @ApiUnauthorizedResponse({ description: 'Falta un JWT válido.' })
   @ApiForbiddenResponse({
-    description: 'Solo un asesor puede registrar clientes.',
+    description: 'Solo asesor, administrador y administrador financiero pueden registrar clientes.',
   })
   @ApiBadRequestResponse({
     description: 'Los datos del cliente no cumplen las validaciones.',

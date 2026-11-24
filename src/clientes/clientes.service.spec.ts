@@ -7,6 +7,30 @@ const referidor = '2b632629-a062-4c42-a309-c725c45df6d3';
 const advisor = { id: '20c3217f-af16-4b74-89c1-3beed3581427', roles: { nombre: 'asesor' } };
 const admin = { id: '0f541db8-55a0-4d29-a9a8-d04c654b4520', roles: { nombre: 'administrador financiero' } };
 
+describe('ClientesService listado del directorio', () => {
+  it.each(['administrador', 'administrador financiero', 'asesor'])(
+    'selecciona solo nombre del asesor y servicios contractuales para %s, conservando el alcance',
+    async (role) => {
+      const records = [{ id: titular, pausado: false, usuarios: { nombre: 'Ana', apellido_paterno: 'López', apellido_materno: null }, contratos: [{ servicios: { nombre: 'APD' } }, { servicios: { nombre: 'Modalidad 40' } }] }];
+      const prisma = { clientes: { findMany: jest.fn().mockResolvedValue(records), count: jest.fn().mockResolvedValue(1) } };
+      const service = new ClientesService(prisma as never);
+      const result = await service.findAll({ page: 1, limit: 100 }, { ...advisor, roles: { nombre: role } });
+      expect(result.data).toEqual(records);
+      expect(result.pagination.total).toBe(1);
+      expect(prisma.clientes.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: role === 'asesor' ? { asesor_id: advisor.id } : {},
+        select: {
+          id: true, pausado: true, nombre: true, apellido_paterno: true,
+          apellido_materno: true, telefono: true, correo_electronico: true,
+          usuarios: { select: { nombre: true, apellido_paterno: true, apellido_materno: true } },
+          contratos: { select: { servicios: { select: { nombre: true } } }, orderBy: [{ servicio_id: 'asc' }, { id: 'asc' }] },
+        },
+        skip: 0, take: 100,
+      }));
+    },
+  );
+});
+
 describe('ClientesService referral policy', () => {
   let prisma: Record<string, any>;
   let tx: Record<string, any>;

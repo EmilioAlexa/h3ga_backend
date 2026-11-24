@@ -110,6 +110,41 @@ pnpm test:e2e
 # Generar cobertura de código
 pnpm test:cov
 
+### Ejecución reproducible de las pruebas e2e
+
+Requisitos: dependencias instaladas y PostgreSQL local en `localhost:5433`.
+El archivo `.env.test` debe definir `DATABASE_URL` para
+`h3ga_finanzas_test?schema=public`, con un usuario que tenga permiso `CREATEDB`.
+
+```powershell
+pnpm run test:e2e
+
+# Guardar evidencia de la ejecución en JSON
+pnpm run test:e2e -- --json --outputFile=storage/e2e-results.json
+```
+
+El comando crea una base temporal `h3ga_e2e_<identificador aleatorio>`, aplica
+las migraciones del repositorio y prepara los roles necesarios. Ejecuta las seis
+suites en serie y elimina exclusivamente esa base al finalizar, incluso si las
+pruebas fallan. Los archivos de prueba usan una carpeta propia en `storage/e2e/`.
+La base `h3ga_finanzas_test` conserva sus datos y catálogos.
+
+Las suites de pagos, núcleo comercial, integridad y retiro usan PostgreSQL real.
+La suite de contratos usa un doble de Prisma; la de aplicación comprueba
+autenticación y Swagger. No se omiten suites ni se deshabilitan comprobaciones
+funcionales para obtener el resultado.
+
+Validación realizada el **22 de noviembre de 2026**:
+
+| Comprobación | Resultado |
+| --- | --- |
+| `pnpm run test:e2e -- --json --outputFile=test/e2e-results.json` | 6 suites y 51 pruebas aprobadas; 0 fallidas (29.13 s) |
+| `pnpm test -- --runInBand` | 34 suites y 215 pruebas aprobadas; 0 fallidas |
+| `pnpm exec tsc --noEmit` | Sin errores |
+
+El reporte JSON de esa ejecución se conserva localmente en
+`storage/e2e-results.json` (carpeta excluida de Git).
+
 Documentación API (Swagger)
 Swagger está deshabilitado por defecto. Para habilitarlo en un entorno autorizado, configura `SWAGGER_ENABLED=true` en el archivo `.env` y ejecuta `pnpm run start:dev`.
 

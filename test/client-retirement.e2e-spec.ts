@@ -1,5 +1,4 @@
-// Esta suite se incorpora a jest-postgres-e2e.json solo después de que el usuario
-// aplique manualmente 20261118210000_clientes_eliminaciones_auditoria en PostgreSQL Test.
+// Verifica la migración de auditoría específica; admite migraciones posteriores.
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -82,7 +81,7 @@ describe('Retiro físico de clientes con auditoría en PostgreSQL Test', () => {
     jwt = app.get(JwtService);
     if (process.env.H3GA_I3_TEST_DATABASE_VERIFIED !== '1') throw new Error('Falta la guarda PostgreSQL Test');
     const url = new URL(process.env.DATABASE_URL!);
-    if (url.hostname !== 'localhost' || url.port !== '5433' || url.pathname !== '/h3ga_finanzas_test' || url.searchParams.get('schema') !== 'public') {
+    if (url.hostname !== 'localhost' || url.port !== '5433' || url.pathname !== `/${process.env.H3GA_TEST_DATABASE_NAME}` || url.searchParams.get('schema') !== 'public') {
       throw new Error('La suite solo permite PostgreSQL Test');
     }
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -90,12 +89,14 @@ describe('Retiro físico de clientes con auditoría en PostgreSQL Test', () => {
     const fromPg = (await pool.query(sql)).rows[0];
     const fromPrisma = (await prisma.$queryRawUnsafe<Array<typeof fromPg>>(sql))[0];
     expect(fromPrisma).toEqual(fromPg);
-    expect(fromPg).toMatchObject({ database: 'h3ga_finanzas_test', schema: 'public', port: 5433 });
+    expect(fromPg).toMatchObject({ database: process.env.H3GA_TEST_DATABASE_NAME, schema: 'public', port: 5433 });
     expect(['127.0.0.1', '::1']).toContain(fromPg.address);
-    const migrations = await prisma.$queryRaw<Array<{ applied: number; ready: boolean }>>`
-      SELECT (SELECT COUNT(*)::int FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applied,
+    const migrations = await prisma.$queryRaw<Array<{ applied: boolean; ready: boolean }>>`
+      SELECT EXISTS (SELECT 1 FROM "_prisma_migrations"
+                     WHERE migration_name = '20261118210000_clientes_eliminaciones_auditoria'
+                       AND finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applied,
              to_regclass('public.clientes_eliminaciones') IS NOT NULL AS ready`;
-    if (migrations[0].applied !== 27 || !migrations[0].ready) {
+    if (!migrations[0].applied || !migrations[0].ready) {
       throw new Error('La migración de auditoría I7 no está aplicada exclusivamente en PostgreSQL Test');
     }
     adminId = await user('administrador', 'admin');

@@ -1,0 +1,30 @@
+[1mdiff --git a/src/main.ts b/src/main.ts[m
+[1mindex b1061a9..c5498a8 100644[m
+[1m--- a/src/main.ts[m
+[1m+++ b/src/main.ts[m
+[36m@@ -81,12 +81,24 @@[m [masync function bootstrap() {[m
+     }[m
+   }[m
+ [m
+[32m+[m[32m  if (!localIntegration && process.env.NODE_ENV === 'production') {[m
+[32m+[m[32m    const frontendOrigin = process.env.FRONTEND_ORIGIN;[m
+[32m+[m[32m    if (frontendOrigin) {[m
+[32m+[m[32m      app.enableCors({[m
+[32m+[m[32m        origin: [frontendOrigin],[m
+[32m+[m[32m        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],[m
+[32m+[m[32m        allowedHeaders: ['Accept', 'Authorization', 'Content-Type'],[m
+[32m+[m[32m        credentials: false,[m
+[32m+[m[32m      });[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+   const configService = app.get(ConfigService);[m
+   if (configService.get<boolean>('swagger.enabled', false)) {[m
+     setupSwagger(app);[m
+   }[m
+ [m
+[31m-  if (localIntegration) {[m
+[32m+[m[32m  if (localIntegration || process.env.NODE_ENV === 'production') {[m
+     await app.listen(port, '127.0.0.1');[m
+   } else {[m
+     await app.listen(port);[m

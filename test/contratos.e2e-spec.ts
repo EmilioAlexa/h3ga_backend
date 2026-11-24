@@ -146,6 +146,7 @@ describe('Contratos API (e2e)', () => {
       },
     };
     prisma = {
+      $queryRaw: jest.fn(async () => [{ documentos: true }]),
       usuarios: {
         findUnique: jest.fn(
           async ({ where }: any) => userRecords.get(where.id) ?? null,
