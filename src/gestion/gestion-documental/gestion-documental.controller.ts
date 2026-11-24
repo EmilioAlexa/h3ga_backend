@@ -1,6 +1,6 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiBody, ApiConflictResponse, ApiConsumes, ApiCreatedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiPayloadTooLargeResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiBody, ApiConflictResponse, ApiConsumes, ApiCreatedResponse, ApiForbiddenResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiPayloadTooLargeResponse, ApiServiceUnavailableResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { pipeline } from 'node:stream/promises';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
@@ -50,6 +50,12 @@ export class GestionDocumentalController {
   @ApiOperation({ summary: 'Metadatos de documentos no confirmados ni referenciados; no reemplaza archivos' })
   @ApiOkResponse({ description: 'Metadatos actualizados; solo observaciones y numero_referencia.' })
   actualizarMetadatos(@Param('documentoId', ParseUUIDPipe) id: string, @Body() dto: MetadatosDocumentoDto, @CurrentUserDecorator() user: CurrentUser) { return this.service.actualizarMetadatos(id, dto, user); }
+
+  @Delete('documentos/:documentoId') @Roles('asesor') @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Eliminar documento no confirmado ni referenciado del expediente propio', description: 'El registro se elimina en PostgreSQL. El archivo se conserva para conciliación por posibles referencias concurrentes.' })
+  @ApiNoContentResponse({ description: 'Registro eliminado; archivo conservado para conciliación.' })
+  @ApiServiceUnavailableResponse({ description: 'No se pudo confirmar el resultado de la operación; requiere conciliación.' })
+  eliminarDocumento(@Param('documentoId', ParseUUIDPipe) id: string, @CurrentUserDecorator() user: CurrentUser) { return this.service.eliminarDocumento(id, user); }
 
   @Get('documentos/:documentoId/visualizar') @Roles('asesor', 'auxiliar administrativo')
   @ApiOperation({ summary: 'RF-27 — Visualizar PDF/imagen; Word se descarga' })

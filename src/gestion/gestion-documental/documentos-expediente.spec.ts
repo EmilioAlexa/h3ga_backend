@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
 import { Readable } from 'node:stream';
+import { Prisma } from '../../generated/prisma/client';
 import { GestionDocumentalService } from './gestion-documental.service';
 import { LIMITE_DOCUMENTO, validarDocumento } from './documento-expediente.validator';
 
@@ -15,7 +16,7 @@ function fixture() {
     modalidades_aplicacion: { findMany: jest.fn().mockResolvedValue([{ aplica_m10: true }]) },
     tipo_documento: { findUnique: jest.fn().mockResolvedValue({ id: 90 }) },
     documentos_clientes: {
-      create: jest.fn().mockResolvedValue({ id: 'doc' }), update: jest.fn().mockResolvedValue({ id: 'doc' }), findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({ id: 'doc' }), update: jest.fn().mockResolvedValue({ id: 'doc' }), delete: jest.fn().mockResolvedValue({ id: 'doc' }), findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue({ id: 'doc', cliente_id: clienteId, archivo_path: 'privado', nombre_archivo_original: 'original.pdf', mime_type: 'application/pdf', estatus: null, _count: { envios_documento: 0, serviciosComplementariosDocumentos: 0 } }),
     },
   };
@@ -24,6 +25,43 @@ function fixture() {
   return { db, storage, service: new GestionDocumentalService(db, storage as any) };
 }
 describe('Documentos de expediente — RF-27/28', () => {
+  it('elimina el registro confirmado en la transacción y conserva el archivo para conciliación', async () => {
+    const { service, db, storage } = fixture();
+    await expect(service.eliminarDocumento('doc', user)).resolves.toBeUndefined();
+    expect(db.documentos_clientes.delete).toHaveBeenCalledWith({ where: { id: 'doc' } });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+  it.each(['administrador', 'auxiliar administrativo', 'administrador financiero'])('rechaza eliminación por %s', async (nombre) => {
+    const { service, db } = fixture();
+    await expect(service.eliminarDocumento('doc', { ...user, roles: { nombre } })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it('oculta documentos inexistentes o ajenos', async () => {
+    const { service, db } = fixture(); db.$queryRaw.mockResolvedValue([]);
+    await expect(service.eliminarDocumento('doc', user)).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.documentos_clientes.delete).not.toHaveBeenCalled();
+  });
+  it.each([
+    { estatus: 'si', _count: { envios_documento: 0, serviciosComplementariosDocumentos: 0 } },
+    { estatus: null, _count: { envios_documento: 1, serviciosComplementariosDocumentos: 0 } },
+    { estatus: null, _count: { envios_documento: 0, serviciosComplementariosDocumentos: 1 } },
+  ])('impide eliminar documento protegido: %j', async (doc) => {
+    const { service, db, storage } = fixture(); db.documentos_clientes.findUnique.mockResolvedValue(doc);
+    await expect(service.eliminarDocumento('doc', user)).rejects.toBeInstanceOf(ConflictException);
+    expect(db.documentos_clientes.delete).not.toHaveBeenCalled(); expect(storage.remove).not.toHaveBeenCalled();
+  });
+  it('conserva el archivo si falla el commit o su resultado es indeterminado', async () => {
+    const { service, db, storage } = fixture();
+    db.$transaction.mockImplementation(async (fn) => { await fn(db); throw new Error('commit desconocido'); });
+    await expect(service.eliminarDocumento('doc', user)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+  it('traduce una referencia concurrente de clave foránea a conflicto', async () => {
+    const { service, db, storage } = fixture();
+    db.documentos_clientes.delete.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('FK', { code: 'P2003', clientVersion: 'test' }));
+    await expect(service.eliminarDocumento('doc', user)).rejects.toBeInstanceOf(ConflictException);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
   it.each([
     ['a.pdf', 'application/pdf'], ['a.doc', 'application/msword'], ['a.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     ['a.jpeg', 'image/jpeg'], ['a.jpg', 'image/jpeg'], ['a.png', 'image/png'],

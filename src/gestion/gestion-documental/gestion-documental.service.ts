@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CurrentUser } from '../gestion-auxiliares/gestion-auxiliares.service';
@@ -12,6 +12,7 @@ const documentoSelect = { id: true, cliente_id: true, tipo_documento_id: true, n
 
 @Injectable()
 export class GestionDocumentalService {
+  private readonly logger = new Logger(GestionDocumentalService.name);
   constructor(private readonly prisma: PrismaService, private readonly storage: DocumentStorageService) {}
 
   async findTareas(user: CurrentUser) {
@@ -95,6 +96,31 @@ export class GestionDocumentalService {
       if (doc?.estatus === 'si' || doc?._count.envios_documento || doc?._count.serviciosComplementariosDocumentos) throw new ConflictException('Documento confirmado o referenciado; se requiere una política de modificación');
       return tx.documentos_clientes.update({ where: { id: documentoId }, data: { ...(dto.observaciones !== undefined ? { observaciones: dto.observaciones } : {}), ...(dto.numero_referencia !== undefined ? { numero_referencia: dto.numero_referencia } : {}) }, select: documentoSelect });
     });
+  }
+
+  async eliminarDocumento(documentoId: string, user: CurrentUser): Promise<void> {
+    assertAsesor(user);
+    let deleteAttempted = false;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<{ id: string }[]>`SELECT d.id FROM documentos_clientes d JOIN clientes c ON c.id = d.cliente_id WHERE d.id = ${documentoId}::uuid AND c.asesor_id = ${user.id}::uuid FOR UPDATE OF c, d`;
+        if (!rows.length) throw new NotFoundException('Documento no encontrado o fuera de tu alcance');
+        const doc = await tx.documentos_clientes.findUnique({ where: { id: documentoId }, select: { estatus: true, _count: { select: { envios_documento: true, serviciosComplementariosDocumentos: true } } } });
+        if (!doc) throw new NotFoundException('Documento no encontrado o fuera de tu alcance');
+        if (doc.estatus === 'si' || doc._count.envios_documento || doc._count.serviciosComplementariosDocumentos) throw new ConflictException('Documento confirmado o referenciado');
+        // Se registra antes del DELETE: una caída durante el commit requiere conciliación.
+        this.logger.warn(`Eliminación documental iniciada; conciliar almacenamiento. documento=${documentoId} actor=${user.id}`);
+        deleteAttempted = true;
+        await tx.documentos_clientes.delete({ where: { id: documentoId } });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new ConflictException('Documento referenciado');
+      if (error instanceof NotFoundException || error instanceof ConflictException) throw error;
+      if (deleteAttempted) this.logger.error(`Resultado de eliminación documental no confirmado; conciliar almacenamiento y registro. documento=${documentoId} actor=${user.id}`);
+      throw new ServiceUnavailableException('No se pudo confirmar la eliminación; requiere revisión');
+    }
+    // Ningún protocolo compartido impide que se cree una referencia concurrente al archivo.
+    this.logger.warn(`Registro documental eliminado; archivo conservado para conciliación. documento=${documentoId} actor=${user.id}`);
   }
 
   async createEnvio(dto: CreateEnvioDto, user: CurrentUser) {

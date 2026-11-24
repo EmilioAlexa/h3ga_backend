@@ -20,7 +20,7 @@ const secret = 'modalidades-http-test-secret-not-for-production';
 describe('Contratos HTTP de Modalidades y expediente', () => {
   let app: INestApplication, jwt: JwtService;
   const service = { guardar: jest.fn().mockResolvedValue({ modalidades: [] }), actualizar: jest.fn().mockResolvedValue({ modalidad: 'modalidad_10' }), catalogos: jest.fn().mockResolvedValue({ fases: [], estatus: [] }), findClientes: jest.fn().mockResolvedValue({ data: [], pagination: {} }) };
-  const documental = { cargarDocumento: jest.fn().mockResolvedValue({ id }), obtenerDocumento: jest.fn(), actualizarMetadatos: jest.fn().mockResolvedValue({ id }), findDocumentos: jest.fn().mockResolvedValue([]) };
+  const documental = { cargarDocumento: jest.fn().mockResolvedValue({ id }), obtenerDocumento: jest.fn(), actualizarMetadatos: jest.fn().mockResolvedValue({ id }), findDocumentos: jest.fn().mockResolvedValue([]), eliminarDocumento: jest.fn().mockResolvedValue(undefined) };
   const token = (rol = 'asesor') => jwt.sign({ sub: rol });
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -89,15 +89,22 @@ describe('Contratos HTTP de Modalidades y expediente', () => {
     expect(res.headers['cache-control']).toBe('private, no-store');
     expect(res.headers['content-type']).toContain(mime);
   });
-  it('no publica eliminación ni reemplazo mientras falta la política', async () => {
-    await request(app.getHttpServer()).delete(`/api/gestion/documental/documentos/${id}`).auth(token(), { type: 'bearer' }).expect(404);
+  it('publica eliminación documental y no publica reemplazo', async () => {
+    await request(app.getHttpServer()).delete(`/api/gestion/documental/documentos/${id}`).auth(token(), { type: 'bearer' }).expect(204);
+    expect(documental.eliminarDocumento).toHaveBeenCalledWith(id, expect.objectContaining({ id }));
     await request(app.getHttpServer()).put(`/api/gestion/documental/documentos/${id}/archivo`).auth(token(), { type: 'bearer' }).expect(404);
+  });
+  it('protege la eliminación con JWT, rol e identificador válido', async () => {
+    await request(app.getHttpServer()).delete(`/api/gestion/documental/documentos/${id}`).expect(401);
+    for (const role of ['auxiliar administrativo', 'administrador', 'administrador financiero']) await request(app.getHttpServer()).delete(`/api/gestion/documental/documentos/${id}`).auth(token(role), { type: 'bearer' }).expect(403);
+    await request(app.getHttpServer()).delete('/api/gestion/documental/documentos/invalido').auth(token(), { type: 'bearer' }).expect(400);
+    expect(documental.eliminarDocumento).not.toHaveBeenCalled();
   });
   it('Swagger registra rutas, seguridad, DTO y formatos de carga', () => {
     const doc = SwaggerModule.createDocument(app, new DocumentBuilder().addBearerAuth(undefined, 'jwt').build());
     expect(doc.paths['/api/gestion/modalidades/clientes/{clienteId}/modalidades'].put?.security).toEqual([{ jwt: [] }]);
     expect(doc.paths['/api/gestion/modalidades/clientes/{clienteId}/modalidades/{modalidad}'].patch?.requestBody).toBeDefined();
     expect(doc.paths['/api/gestion/documental/clientes/{clienteId}/documentos'].post?.requestBody).toHaveProperty('content.multipart/form-data');
-    expect(doc.paths['/api/gestion/documental/documentos/{documentoId}'].delete).toBeUndefined();
+    expect(doc.paths['/api/gestion/documental/documentos/{documentoId}'].delete?.responses).toHaveProperty('204');
   });
 });
