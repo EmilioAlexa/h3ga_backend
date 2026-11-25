@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../database/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
+import { PrismaService } from '../../database/prisma.service';
 import { AccionDelMes, AvanceCliente, CargaPorAsesor, ClienteDetenido, ClientesPorEtapa, DashboardRespuesta, DocumentoPendiente } from './dto/dashboard-respuesta.dto';
 
 export interface AuthenticatedUser { id: string; roles: { nombre: string } }

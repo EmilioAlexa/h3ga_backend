@@ -8,11 +8,13 @@ import { GestionAuxiliaresModule } from './gestion-auxiliares/gestion-auxiliares
 import { GestionDocumentalModule } from './gestion-documental/gestion-documental.module';
 import { ProcesoFinalModule } from './proceso-final/proceso-final.module';
 import { ModalidadesModule } from './modalidades/modalidades.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
     GestionAuxiliaresModule,
     GestionDocumentalModule,
+    DashboardModule,
     ProcesoFinalModule,
     ModalidadesModule,
   ],

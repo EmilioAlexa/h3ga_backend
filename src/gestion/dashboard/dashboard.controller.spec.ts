@@ -4,9 +4,9 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
-import { JwtStrategy } from '../auth/strategies/jwt.strategy';
-import { PrismaService } from '../database/prisma.service';
-import { RolesGuard } from '../roles/guards/roles.guard';
+import { JwtStrategy } from '../../auth/strategies/jwt.strategy';
+import { PrismaService } from '../../database/prisma.service';
+import { RolesGuard } from '../../roles/guards/roles.guard';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
