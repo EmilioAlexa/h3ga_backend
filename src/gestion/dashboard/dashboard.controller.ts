@@ -9,7 +9,7 @@ import type { AuthenticatedUser } from './dashboard.service';
 import { DashboardQueryDto, LIMITE_POR_OMISION } from './dto/dashboard-query.dto';
 import { DashboardRespuesta } from './dto/dashboard-respuesta.dto';
 
-@Controller('dashboard')
+@Controller('gestion/dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('administrador', 'asesor', 'auxiliar administrativo')
 @ApiTags('dashboard')
