@@ -9,6 +9,7 @@ import { GestionDocumentalModule } from './gestion-documental/gestion-documental
 import { ProcesoFinalModule } from './proceso-final/proceso-final.module';
 import { ModalidadesModule } from './modalidades/modalidades.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ServiciosComplementariosModule } from './servicios-complementarios/servicios-complementarios.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     DashboardModule,
     ProcesoFinalModule,
     ModalidadesModule,
+    ServiciosComplementariosModule,
   ],
   providers: [
     FormatosInstitucionalesService,
