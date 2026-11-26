@@ -610,6 +610,8 @@ model tipos_venta {
 
 model usuarios {
   documentos_contrato documentos_contrato[]
+  seguimientos_modalidad_creados modalidades_seguimiento[] @relation("modalidad_seguimiento_creador")
+  seguimientos_modalidad_actualizados modalidades_seguimiento[] @relation("modalidad_seguimiento_editor")
   id                                                                                String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   rol_id                                                                            Int                                   @db.SmallInt
   nombre                                                                            String
@@ -1064,6 +1066,7 @@ model modalidad40_criterios {
 }
 
 model modalidades_aplicacion {
+  seguimientos modalidades_seguimiento[]
   id                                                                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   cliente_id                                                                  String                    @db.Uuid
   diagnostico_id                                                              String                    @db.Uuid
@@ -1090,6 +1093,24 @@ model modalidades_aplicacion {
   fase_modalidad_modalidades_aplicacion_fase_m10_idTofase_modalidad           fase_modalidad?           @relation("modalidades_aplicacion_fase_m10_idTofase_modalidad", fields: [fase_m10_id], references: [id])
   fase_modalidad_modalidades_aplicacion_fase_m40_idTofase_modalidad           fase_modalidad?           @relation("modalidades_aplicacion_fase_m40_idTofase_modalidad", fields: [fase_m40_id], references: [id])
   fase_modalidad_modalidades_aplicacion_fase_m40r_idTofase_modalidad          fase_modalidad?           @relation("modalidades_aplicacion_fase_m40r_idTofase_modalidad", fields: [fase_m40r_id], references: [id])
+}
+
+/// Datos operativos independientes. Fase y estatus permanecen en modalidades_aplicacion.
+model modalidades_seguimiento {
+  modalidad_aplicacion_id String @db.Uuid
+  modalidad tipo_modalidad
+  fecha_cita_imss DateTime? @db.Date
+  ultimo_salario_diario_registrado Decimal? @db.Decimal(10, 2)
+  motivo_cierre String?
+  creado_el DateTime @default(now()) @db.Timestamptz(6)
+  actualizado_el DateTime @default(now()) @db.Timestamptz(6)
+  creado_por String? @db.Uuid
+  actualizado_por String? @db.Uuid
+  aplicacion modalidades_aplicacion @relation(fields: [modalidad_aplicacion_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  creador usuarios? @relation("modalidad_seguimiento_creador", fields: [creado_por], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  editor usuarios? @relation("modalidad_seguimiento_editor", fields: [actualizado_por], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@id([modalidad_aplicacion_id, modalidad])
 }
 
 model objetivo_diagnostico {

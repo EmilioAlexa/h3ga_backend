@@ -10,7 +10,6 @@ import { ClientesModule } from './clientes/clientes.module';
 import { GestionModule } from './gestion/gestion.module';
 import { FinanzasModule } from './finanzas/finanzas.module';
 import { DatabaseModule } from './database/database.module';
-
 @Module({
   imports: [
     ConfigModule.forRoot({

@@ -1,13 +1,19 @@
-import {Injectable, BadRequestException, NotFoundException, NotImplementedException} from '@nestjs/common';
+import {Injectable, BadRequestException, NotFoundException, NotImplementedException, Logger} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
 import { QueryFormatosDto } from './dto/query-formatos.dto';
 import { UpdateFormatoDto } from './dto/update-formato.dto';
 import { CreateFormatoDto } from './dto/create-formato.dto';
+import { CargarFormatoDto } from './dto/cargar-formato.dto';
+import { validarArchivoFormato } from './formato-archivo.validator';
+import { DocumentStorageService } from '../gestion-documental/document-storage.service';
+import { extname } from 'node:path';
+import { createHash } from 'node:crypto';
 
 @Injectable()
 export class FormatosInstitucionalesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(FormatosInstitucionalesService.name);
+  constructor(private readonly prisma: PrismaService, private readonly storage: DocumentStorageService) {}
 
 
 async findAll(query: QueryFormatosDto, esBiblioteca: boolean = false) {
@@ -168,9 +174,14 @@ async descargar(id: number) {
     );
   }
 
-  throw new NotImplementedException(
-    'La descarga estará disponible cuando se configure el almacenamiento de archivos.',
-  );
+  const key = formato.archivo_path;
+  if (!/^[0-9a-f-]{36}\.(pdf|doc|docx)$/.test(key)) {
+    throw new NotImplementedException('La descarga de esta referencia anterior aún no está disponible.');
+  }
+  const extension = extname(key);
+  const contentType = extension === '.pdf' ? 'application/pdf' : extension === '.doc' ? 'application/msword' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const file = await this.storage.get(key);
+  return { file, filename: `formato-${formato.id}${extension}`, contentType };
 }
 
 async findOne(id: number) {
@@ -206,6 +217,11 @@ async findOne(id: number) {
 }
 
 async create(dto: CreateFormatoDto, userId: string) {
+  await this.validarCreacion(dto);
+  return this.persistir(dto, userId);
+}
+
+private async validarCreacion(dto: Pick<CreateFormatoDto, 'dependencia_id' | 'nombre' | 'tipo_formato' | 'archivo_path'>) {
   // Verificar que la dependencia exista y esté activa
   const dependencia = await this.prisma.dependencias_formato.findFirst({
     where: {
@@ -254,6 +270,9 @@ if (dto.archivo_path) {
     );
   }
 }
+ }
+
+private async persistir(dto: CreateFormatoDto, userId: string) {
   return this.prisma.formatos_institucionales.create({
     data: {
       nombre: dto.nombre,
@@ -280,6 +299,38 @@ if (dto.archivo_path) {
       },
     },
   });
+}
+
+async cargar(dto: CargarFormatoDto, file: Express.Multer.File | undefined, userId: string) {
+  validarArchivoFormato(file, dto.tipo_formato);
+  await this.validarCreacion(dto);
+  const key = await this.storage.save(file!);
+  try {
+    return await this.persistir({ ...dto, archivo_path: key }, userId);
+  } catch (error) {
+    const referencia = createHash('sha256').update(key).digest('hex');
+    // Solo errores de restricciones de PostgreSQL confirman que la inserción fue rechazada.
+    const rechazado = error instanceof Prisma.PrismaClientKnownRequestError &&
+      ['P2000', 'P2002', 'P2003', 'P2004', 'P2011', 'P2012', 'P2013', 'P2014'].includes(error.code);
+    if (!rechazado) {
+      this.logger.error(`Resultado de persistencia indeterminado; archivo conservado para conciliación. referencia=${referencia}`);
+      throw error;
+    }
+    try {
+      await this.storage.remove(key);
+      try {
+        const restante = await this.storage.get(key);
+        restante.stream.destroy();
+        this.logger.error(`Limpieza compensatoria no confirmada; archivo todavía accesible. referencia=${referencia}`);
+      } catch {
+        // get() convierte cualquier error de acceso en 404; no prueba la ausencia.
+        this.logger.error(`Limpieza compensatoria no confirmada. referencia=${referencia}`);
+      }
+    } catch {
+      this.logger.error(`Falló la limpieza compensatoria. referencia=${referencia}`);
+    }
+    throw error;
+  }
 }
 
 async update(

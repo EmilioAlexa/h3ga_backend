@@ -42,13 +42,13 @@ export class GestionAuxiliaresService {
     if (user.roles.nombre === 'asesor') {
       return this.prisma.cliente_auxiliares.findMany({
         where: { activo: query.activo, auxiliar_id: query.auxiliar_id, clientes: { asesor_id: user.id, ...(query.cliente_id ? { id: query.cliente_id } : {}) } },
-        include: { clientes: { select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true } }, auxiliar: { select: { id: true, nombre: true, apellido_paterno: true, correo_electronico: true } } },
+        include: { clientes: { select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true } }, usuario_auxiliar: { select: { id: true, nombre: true, apellido_paterno: true, correo_electronico: true } } },
       });
     }
     if (user.roles.nombre === 'auxiliar administrativo') {
       return this.prisma.cliente_auxiliares.findMany({
-        where: { auxiliar_id: user.id, activo: query.activo, ...(query.cliente_id ? { cliente_id: query.cliente_id } : {}) },
-        include: { clientes: { select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true, asesor_id: true } } },
+        where: { auxiliar_id: user.id, activo: true, ...(query.cliente_id ? { cliente_id: query.cliente_id } : {}) },
+        include: { clientes: { select: { id: true, nombre: true, apellido_paterno: true, apellido_materno: true, asesor_id: true } }, usuario_auxiliar: { select: { id: true, nombre: true, apellido_paterno: true, correo_electronico: true } } },
       });
     }
     throw new ForbiddenException('No tienes acceso a asignaciones de auxiliares');
